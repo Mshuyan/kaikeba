@@ -1,0 +1,15 @@
+ UserServiceImpl userService = new UserServiceImpl();
+        UserDaoImpl userDao = new UserDaoImpl();
+        BasicDataSource dataSource = new BasicDataSource();
+        dataSource.setDriverClassName("com.mysql.jdbc.Driver");
+        dataSource.setUrl("jdbc:mysql://39.105.204.66:3306/kkb");
+        dataSource.setUsername("root");
+        dataSource.setPassword("root");
+        userDao.setDataSource(dataSource);
+        userService.setUserDao(userDao);
+
+        //实现用户查询功能
+        Map<String, Object> map = new HashMap<>();
+        map.put("username","王五");
+        List<User> users = userService.queryUsers(map);
+        System.out.println(users);

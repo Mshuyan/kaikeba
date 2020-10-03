@@ -1,0 +1,7 @@
+装饰模式（decorate）：只是在原有的bean外面添加了新的功能。
+	接口：PhoneInterface
+	目标类：HuaWeiPhone
+	装饰类：HuaWeiPhoneDecorate，需要持有一个目标类的引用
+	测试类
+
+装饰模式在spring中的具体体现都是通过xxxWrapper类去体现的。

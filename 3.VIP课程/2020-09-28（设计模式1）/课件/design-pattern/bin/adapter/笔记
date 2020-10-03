@@ -1,0 +1,51 @@
+适配器模式（adapter）
+	作用：将一个类的接口转换成另外一个客户希望的接口
+		Adaptee：被适配的类			适配器						目标接口
+		将HttpRequestHandler类型---HttpRequestHandlerAdapter----转成HandlerAdapter类型
+		将SimpleControllerHandler类型---SimpleControllerHandlerAdapter----转成HandlerAdapter类型
+		ThinkPad电脑的15V充电电压---ThinkPad电脑的电源适配器-----220V电压（插座就只认识220V电压）
+		
+		
+	适配器模式分为两种：类的适配器模式、对象的适配器模式
+	类的适配器模式是基于继承的
+	对象的适配器模式是基于组合模式或者委托模式
+
+	角色：
+		目标接口：客户希望看到的统一接口
+		Adaptee：被适配的类
+		Adapter：适配器
+	
+	也就是说，Adapter需要实现目标接口，并且拥有Adaptee的引用
+	
+	interface Target{
+		m1();
+	}
+	class Adapter1 implements Target{
+		Adaptee1 adaptee1;
+		
+		m1(){
+			adaptee1.method();
+		}
+	
+	}
+	class Adapter2 implements Target{
+		Adaptee2 adaptee2;
+		
+		m1(){
+			adaptee2.method();
+		}
+	}
+	
+		  解决的问题就是一个标准和另一个标准不兼容的问题。
+		  解决方案有两种：
+		  1、一个标准去匹配另一个标准
+		  2、两个不兼容的标准，去找到一个兼容的标准
+	
+	背景：一个中国人去德国出差，住在德国宾馆中，此时想充电，德国的旅馆都是针对国际标准进行设计的
+	问题：中国的充电器是针对三孔插孔进行设计的，而德国的充电器都是针对两孔插孔进行设计的。
+	
+	需要做的事：
+		1、使用针对德国标准的插孔，准备一个转换插头
+		2、重新整一个国际标准的插孔，中国可以使用、德国也可以使用
+		
+	

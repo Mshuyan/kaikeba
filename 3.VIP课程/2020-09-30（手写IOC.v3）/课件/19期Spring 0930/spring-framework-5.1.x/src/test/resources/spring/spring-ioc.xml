@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context.xsd
+        http://www.springframework.org/schema/tx
+        http://www.springframework.org/schema/tx/spring-tx.xsd
+        http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop.xsd">
+
+	<bean id="course" class="ioc.xml.po.Course">
+		<property name="name" value="english">
+		</property>
+	</bean>
+	<bean id="student" class="ioc.xml.po.Student"
+		init-method="initMethod" destroy-method="destroyMethod">
+		<property name="name" value="zhangsan"></property>
+		<property name="course" ref="course"></property>
+	</bean>
+<!--	<bean id="classA" class="ioc.xml.po.ClassA">
+		<property name="classB" ref="classB"></property>
+	</bean>
+	<bean id="classB" class="ioc.xml.po.ClassB">
+		<property name="classA" ref="classA"></property>
+	</bean>-->
+
+	<!-- <bean id="myAdvice" class="com.kkb.spring.aop.advice.MyAdvice" ></bean> -->
+
+	<!-- AOP配置 -->
+	<!-- <aop:config> -->
+	<!-- <aop:aspect ref="myAdvice"> -->
+	<!-- <aop:before method="before" -->
+	<!-- pointcut="execution(* com.kkb.spring.ioc.xml.po.*.*(..))" /> -->
+	<!-- </aop:aspect> -->
+	<!-- </aop:config> -->
+</beans>

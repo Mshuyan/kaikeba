@@ -1,0 +1,52 @@
+* 什么是代理？
+	简单点讲，代理就是帮[目标对象]去完成它应该做，但是不想或者不擅长做的事情。
+	
+	例子：
+	
+	媒婆：帮你找对象。
+	黄牛：帮你去挂号。
+	社保代办：帮你缴纳社保。
+
+* 对于动态代理的学习目标
+	* 了解代理对象是如何产生的？牵扯到Classloader的理解
+	* 会编写JDK和cglib的动态代理代码
+	* 了解代理对象和InvocationHandler实现类直接的关系（调用关系）
+* 代理模式分为静态代理和动态代理
+	* 静态代理：就是编写一个代理类，去代理[目标对象]
+	* 动态代理：在运行期间，通过反射，对[目标对象]产生一个[代理对象]
+
+* 动态代理的实现方式分为两种，下面两种方式生成的代理类都是继承了Proxy：
+	* JDK实现的		：基于接口的，也就是说[目标对象]必须实现一个接口，[目标对象]和[代理对象]都实现该接口
+		* 目录类必须实现接口
+		
+		* 编写代理工厂类 implements InvocationHandler{
+		
+			getProxy(target){return Proxy.newInstance(Classloader,interface,this)}
+			
+			invoke(proxy,method,args)方法
+			
+		}
+		
+		* 生成的代理对象
+				
+		public final void saveUser()
+		    throws 
+		  {
+		    try
+		    {
+		      this.h.invoke(this, m3, null); // h 就是上面的代理工厂类
+		      return;
+		    }
+		    catch (Error|RuntimeException localError)
+		    {
+		      throw localError;
+		    }
+		    catch (Throwable localThrowable)
+		    {
+		      throw new UndeclaredThrowableException(localThrowable);
+		    }
+		  }
+	* cglib实现的	：可以被继承的普通类，它是通过继承的方式，产生一个子类，这个子类就是代理类
+
+* 为什么使用动态代理呢？
+	增强对象的功能。这种增强，是符合开闭原则的，不会对目标对象进行修改，只需要扩展就可以实现增强
