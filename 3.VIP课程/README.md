@@ -391,7 +391,7 @@
   + 没有线程安全问题
   + 一般不被使用
 
-##### 饿汉式创建单例对象
+##### 饿汉式
 
 ```java
 public class Student1 {
@@ -406,7 +406,7 @@ public class Student1 {
 }
 ```
 
-##### 双重检查锁创建单例对象
+##### 双重检查锁
 
 + demo
 
@@ -452,7 +452,100 @@ public class Student1 {
 
   + 可见性
 
-    
+    CPU操作内存中变量时，变量会先被加载到CPU的寄存器中，再进行操作；当多核CPU同时操作同1个变量时，会出现1个CPU寄存器中变量值被改变时，其他COU寄存器不知道，导致变量值出错
+
+    ![image-20201005190547660](assets/image-20201005190547660.png) 
+
+    当变量`y`被`volatile`修饰时，变量`y`的值会通过`MESI(内存数据一致性协议)`被及时同步到内存和其他CPU寄存器中，来保证可见性
+
++ 并不安全，会被`反射攻击`和`序列化攻击`
+
+##### 静态内部类
+
++ demo
+
+  ```java
+  public class StaticInnerHolderSingleton {
+      // 静态内部类
+      private static class SingletonHolder {
+          private static final StaticInnerHolderSingleton INSTANCE =
+              new StaticInnerHolderSingleton();
+      }
+      
+      public static StaticInnerHolderSingleton getInstance() {
+          return SingletonHolder.INSTANCE;
+      }
+  }
+  ```
+
++ 因为`SingletonHolder`是静态内部类，所以只有在**第一次使用时**，这个类才会被加载，它的静态成员变量才会被初始化
+
++ 并不安全，会被`反射攻击`和`序列化攻击`
+
+##### 枚举
+
++ demo
+
+  ```java
+  public enum EnumSingleton {
+      INSTANCE;
+      // 虽然类的类型是枚举，但是类该有的特性他都有，所以并不影响功能使用
+      public void tellEveryone() {
+          System.out.println("This is an EnumSingleton " + this.hashCode());
+      }
+  }
+  ```
+
++ 最安全的单例对象创建方式，天然防御`反射攻击`和`序列化攻击`
+
+##### 反射攻击
+
+```java
+public class SingletonAttack{
+    public static void reflectionAttack() throws Exception {
+        //通过反射，获取单例类的私有构造器
+        Constructor constructor = DoubleCheckLockSingleton.class.getDeclaredConstructor();
+        //设置私有成员的暴⼒破解
+        constructor.setAccessible(true);
+        // 通过反射去创建单例类的多个不同的实例
+        DoubleCheckLockSingleton s1 = (DoubleCheckLockSingleton)constructor.newInstance();
+        // 通过反射去创建单例类的多个不同的实例
+        DoubleCheckLockSingleton s2 = (DoubleCheckLockSingleton)constructor.newInstance();
+        System.out.println(s1 == s2);
+    }
+}
+```
+
+##### 序列化攻击
+
++ 序列化攻击仅针对实现了`Serializable`接口的类，将对象序列化之后再反序列化回来的方式进行攻击
+
++ demo
+
+  ```java
+  public class SingletonAttack {
+      public static void serializationAttack() throws Exception {
+          DoubleCheckLockSingleton s1 = DoubleCheckLockSingleton.getInstance();
+          // 序列化
+          ObjectOutputStream outputStream = new ObjectOutputStream(new FileOutputStream("serFile"));
+          outputStream.writeObject(s1);
+          // 反序列化
+          ObjectInputStream inputStream = new ObjectInputStream(new FileInputStream(new File("serFile")));
+          DoubleCheckLockSingleton s2 = (DoubleCheckLockSingleton)inputStream.readObject();
+          System.out.println(s1 == s2);
+      }
+  }
+  ```
+
++ 防御
+
+  在反序列化时比然后调用`inputStream.readObject()`这行代码，而这行代码里会判断是否存在`readResolve`方法，如果存在直接使用该方法返回值作为反序列化的结果，所以我们只需要重写`readResolve`方法并返回单例对象即可进行防御
+
+  ```java
+  private Object readResolve() {
+   return instance;
+  }
+  ```
 
 #### 设计模式总结
 
