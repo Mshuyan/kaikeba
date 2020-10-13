@@ -1,6 +1,6 @@
 
 
-# 0928-手写AOP.v3、设计模式1
+# 0928-设计模式1
 
 ## BeanDfinition注册流程
 
@@ -325,6 +325,10 @@
 
     + 违反开闭原则
     + 负担太重，代码越来越多
+  
++ 问题（TODO）
+
+  + `BeanFactory`为什么算简单工厂
 
 #### 工厂方法模式
 
@@ -555,3 +559,91 @@ public class SingletonAttack{
 + ⼯⼚⽅法 ： 使⽤多个⼯⼚对象⽤来⽣产同⼀等级结构中对应的固定产品。（⽀持拓展增加产品） 
 + 抽象⼯⼚ ： 使⽤多个⼯⼚对象⽤来⽣产不同产品族的全部产品。（不⽀持拓展增加产品；⽀持增 加产品族）
 
+# 0930-手写IOC.v3(1)
+
+## BeanFactory继承体系
+
+![image-20201006151424561](assets/image-20201006151424561.png) 
+
+> 参见[CSDN](https://blog.csdn.net/u013412772/category_9273433.html) 
+
++ BeanFactory
+
+  + 接口
+  + Spring bean容器的根接口.提供获取bean,是否包含bean,是否单例与原型,获取bean类型,bean别名的api
+
++ ListableBeanFactory
+
+  + 接口
+  + 提供容器内bean实例的枚举功能，可列表化操作
+  + 该接口中的方法只考虑自己管理Bean，其他的都不考虑，比如：
+    + 父类中管理的Bean（即使实现了`HierarchicalBeanFactory`）
+    + `ConfigurableBeanFactory`的`registerSingleton`注册的单例bean（getBeanNamesOfType和getBeansOfType是除外）
+
++ AutowireCapableBeanFactory
+
+  + 接口
+  + 添加框架集成功能，扩展了自动装配的功能，根据类定义BeanDefinition装配Bean、执行前、后处理器等。
+
++ HierarchicalBeanFactory
+
+  + 接口
+  + 提供父容器的访问功能
+
++ ConfigurableBeanFactory
+
+  + 接口
+  + 定义`BeanFactory`的配置方法
+
++ SingletonBeanRegistry
+
+  + 接口
+
+  + 单例Bean都存储到该类中进行管理
+
++ AliasRegistry
+
+  + 接口
+  + 用于操作Bean的别名
+
++ BeanDefinitionRegistry
+
+  + 接口
+  + Bean的描述信息都在该类中进行管理
+
++ DefaultListableBeanFactory
+
+  + 类
+  + 集大成者，我们最终使用的是该类
+
++ 其他
+
+  + 对于上图中的2个抽象类，都是各自实现了接口或父抽象类中的方法，并定义了新的接口方法留给子类去实现，这体现了`抽象模板方法`的设计模式
+  + 其他的暂不介绍
+
+# 1009-源码阅读
+
+## 阅读源码
+
+### 方法
+
+1. 带着目的阅读源码
+   + 找到阅读主流程
+   + 找到程序入口（一般就是自己代码调用的地方）
+   + 分清主次（不要轻易进入旁支流程）
+2. 借鉴别人的经验阅读
+3. 注意阅读源码的层次
+   + 第一步：搞清处理流程
+   + 第二部：理解设计模式
+4. 源码debug
+5. 使用翻译工具
+6. 总结
+   + 记笔记
+   + 记录调用栈的方法路径
+
+### 源码导入
+
++ 务必按照[Spring源码导入.pdf](./2020-09-30（手写IOC.v3）/课件/19期Spring 0930/Spring源码导入.pdf)中的步骤导入源码[spring-framework-5.1.x](./2020-09-30（手写IOC.v3）/课件/19期Spring 0930/spring-framework-5.1.x)  
++ 源码导入后`build project`还是会报错，但是测试用例可以正常运行，可以先不管
+
+# 1012-AOP

@@ -8,7 +8,7 @@ public class TestIoCAnno {
 
 	@Test
 	public void test() {
-		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext("com.kkb.spring.ioc.annotation.po");
+		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext("ioc.annotation.po");
 		Student student = context.getBean(Student.class);
 		System.out.println(student);
 		context.close();

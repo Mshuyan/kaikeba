@@ -1,0 +1,86 @@
+适配器模式（adapter）
+    解决的问题（什么时候用适配器？）：
+        当已有的两个类需要共同去完成一个工作而无法兼容，也就是一个标准和另一个标准不兼容的问题。
+
+    解决方案有两种（通过适配器完成两个类的兼容问题，选择使用哪种方式？）：
+        1、一个标准去匹配另一个标准（你听我的，或者我听你的）
+        2、两个不兼容的标准，去找到一个兼容的标准（咱俩都不需要听对方，我们找个第三方权威标准）
+
+	举例：
+	    DispatcherServlet（客户）希望见到的是HandlerAdapter接口，而不是Handler类，所以需要一个适配器进行适配）
+	    通俗的理解就是笔记本电脑（电压标准可能是10V）要想插在220V的电插座上（电插座的电压标准是220V），得需要电源适配器。
+	    电源适配器，作用：将10V的电压转成220V的电压，也可以说成将220V的电压转成10V的电压。
+	
+	    另外的例子：一般穷人的笔记本电脑（Windows本）都是三相插头，而有钱人家的电插排上都是两眼的插孔（因为在他们的概念里面，就没有三个插头的使用场景）。
+	    电源转换插头：将三相插头转换成两相插头
+	
+		
+	Adaptee：被适配的类			适配器						目标接口
+	将HttpRequestHandler类型---HttpRequestHandlerAdapter----转成HandlerAdapter类型
+	将SimpleControllerHandler类型---SimpleControllerHandlerAdapter----转成HandlerAdapter类型
+	ThinkPad电脑的15V充电电压---ThinkPad电脑的电源适配器-----220V电压（插座就只认识220V电压）
+		
+		
+	适配器模式分为两种：类的适配器模式、对象的适配器模式
+	    类的适配器模式是基于【继承】的
+	    对象的适配器模式是基于【组合模式或者委托模式】
+
+	角色（具体如何做？）：
+		目标接口：客户希望看到的统一接口(HandlerAdapter)
+		Adaptee：被适配的类（Handler类）
+		Adapter：适配器类（HttpRequestHandlerAdapter类）
+	
+	也就是说，Adapter需要实现目标接口，并且拥有Adaptee的引用
+	
+	interface Target{
+		m1();
+	}
+	class Adapter1 implements Target{
+		Adaptee1 adaptee1;
+		
+		m1(){
+			adaptee1.method();
+		}
+	
+	}
+	// 待适配的类
+	class Adaptee1{
+        method(){
+            // 方法内容
+        }
+
+    }
+
+    // 基于类的适配器模式（继承关系）
+	class Adapter1 extends Adaptee1 implements Target{
+        m1(){
+            method();
+        }
+
+    }
+
+    // 基于对象的适配器模式（组合关系）
+	class Adapter2 implements Target{
+		Adaptee1 adaptee1;
+		
+		m1(){
+			adaptee1.method();
+		}
+	}
+
+
+	背景：一个中国人去德国出差，住在德国宾馆中，此时想充电，德国的旅馆都是针对国际标准进行设计的
+	问题：中国的充电器是针对三孔插孔（中国标准）进行设计的，而德国的充电器都是针对两孔插孔（国际标准）进行设计的。
+
+
+
+	需要做的事：
+		1、使用针对德国标准的插孔，准备一个转换插头
+		2、重新整一个国际标准的插孔，中国可以使用、德国也可以使用
+
+
+适配器模式需要记住的内容：
+1、先考虑什么时候使用适配器模式？
+2、考虑使用哪种适配器模式？
+3、考虑如何使用适配器模式？
+4、考虑使用类适配器模式还是对象适配器模式？
