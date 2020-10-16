@@ -959,3 +959,6 @@ aop源码处理流程分为如下几步：
   + MethodLocatingFactoryBean
 
 `AspectJAwareAdvisorAutoProxyCreator`是代理对象创建器，用户代理对象创建
+
+# 1016-AOP代理对象创建执行
+
