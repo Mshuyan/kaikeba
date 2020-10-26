@@ -12,8 +12,8 @@ public class StringTest {
 
     public static void main(String... args) {
         String s3 = new String("1") + new String("1");
-        
-        String s4 = "11";
+
+        String s4 = "shuyantest";
         s3.intern();
         System.out.println(s3 == s4);
 
