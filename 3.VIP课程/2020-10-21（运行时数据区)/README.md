@@ -189,13 +189,14 @@ public class StringTest {
 
   每个Class对象有1个运行时常量池
 
+  加载进这里得字符串常量是1个`CONSTANT_Stirng_info`指向1个`CONSTANT_Utf8_info`
+
 + 字符串常量池
 
   全局只有1个字符串常量池
 
   字符串常量池就是`stringtable`
 
-  字符串常量池里存得是`CONSTANT_String_info` 和`CONSTANT_Utf8_info`，`CONSTANT_String_info` 指向`CONSTANT_Utf8_info`
 
 ### 存储位置
 
@@ -219,9 +220,9 @@ public class StringTest {
 + 1.6以前是哈希桶长度固定`1009`，1.7以后可以通过`-XX:StringTableSize=<size>`进行设置
 + 常量存入stringtable过程
   + 类加载时字符串常量已经加载进运行时常量池
-  + **第一次使用该常量时**，先校验stringtable中是否存在该字符串对应的hashcode
+  + **第一次使用该常量时（执行ldc指令）**，先校验stringtable中是否存在该字符串对应的hashcode
   + 有直接返回stringtable中该hashcode指向的对象
-  + 没有则将该对象字符串的hashcode作为key，字符串常量地址作为value存入
+  + 没有则将该对象字符串的hashcode作为key，运行时常量池中得字符串常量对象引用作为value存入
   + 返回该对象
 
 ##### String.intern()
