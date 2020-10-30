@@ -330,24 +330,7 @@ String a = "hello"
 
 
 
-> 其他内容没整理完，参见[垃圾回收机制](https://www.jianshu.com/p/5261a62e4d29) 
->
-> 问题：
->
-> + full gc时会将对象放入元空间吗
-> + jvm参数整理
-> + gc流程图
->   + https://blog.csdn.net/weixin_38106322/article/details/108943731
-> + 各种gc定义
-> + java命令工具
->   + jps
->   + stat
->   + jinfo
->   + jmap
->   + jhat
->   + jstack
->   + jconsole
->   + hprof
+
 
 
 
