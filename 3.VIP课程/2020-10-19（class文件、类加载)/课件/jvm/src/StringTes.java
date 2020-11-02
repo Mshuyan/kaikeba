@@ -6,10 +6,6 @@ import static java.lang.Thread.sleep;
 public class StringTes {
 
     public static void main(String[] args) throws InterruptedException {
-        String s;
-        while (true){
-            s = "shuyan";
-            s = "gc";
-        }
+        int[] arr = {1};
     }
 }

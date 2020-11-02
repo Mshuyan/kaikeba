@@ -335,6 +335,7 @@ String a = "hello"
 > 问题：
 >
 > + full gc时会将对象放入元空间吗
+> + 直接内存
 > + jvm参数整理
 > + gc流程图
 >   + https://blog.csdn.net/weixin_38106322/article/details/108943731
