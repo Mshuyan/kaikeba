@@ -174,7 +174,11 @@
 
 ## GC流程
 
+> 流程图：https://www.processon.com/diagraming/5fa27383e401fd1c7b84bf26
+>
+> 官方文档：https://www.oracle.com/webfolder/technetwork/tutorials/obe/java/gc01/index.html
 
+![JVM垃圾回收流程](assets/JVM垃圾回收流程.png) 
 
 ## 回收方式
 
