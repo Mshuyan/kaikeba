@@ -76,6 +76,9 @@
 
 + 所有value值使用`redisObject`类型存储，使用`type`属性表示5种基本数据类型
 + `ptr`指针指向真正的数据
++ `refcount`
+  + 引用计数，当技术大于1时表示这是1个`共享对象`
+  + 共享对象池：`0~9999`这些整形数字内置在共享对象池中，可以重复引用
 
 ### 字符串类型
 
@@ -111,6 +114,7 @@
 + `hashtable`
 
   + 不满足上面两个条件时使用该编码
+  + `set`集合使用`hashtable`编码时，`hashtable`中所有`value`值为`null`
 
 ### 有序集合
 
@@ -297,25 +301,110 @@ typedef struct zskiplistNode {
 
 + `redis`中`hashtable`上面加了两层，主要目的是准备两个哈希桶，用于实现扩容时的[渐进rehash](https://github.com/Mshuyan/redis#%E6%B8%90%E8%BF%9Brehash) 
 
-  
-
 ## ziplist
 
+![image-20201107105930651](assets/image-20201107105930651.png) 
 
++ 压缩列表分为2部分：`ziplist`、`zlentry`，`zlentry`镶嵌在`ziplist`内部
++ `ziplist`
+  + `zlbytes`：整个`ziplist`占用字节数；占用4字节
+  + `zltail`：尾节点偏移量；占用4字节
+  + `zllen`：节点数，小于65535时表示节点数，等于65535时需要遍历才能得到节点数；占用2字节
+  + `zlentry`
+    + `prevrawlensize`：前一节点长度占用字节数，值为1或5
+    + `prevrawlen`：前一节点长度
+    + `lensize`：当前元素长度占用字节数
+    + `len`：当前元素长度
+    + `headersize`头信息（前面四部分）字节数
+    + `encoding`：编码
+    + `p`：数据内容；这里实际不是指针，就是数组，内容就存在接下来的内存区域
++ 插入、修改、删除操作，是需要大量内存拷贝的
 
 ## quicklist
 
+![image-20201107140242085](assets/image-20201107140242085.png) 
 
++ `quicklist`就是`双向链表`+`ziplist`
 
 ## skiplist
 
+![](assets/zskiplist.png) 
 
++ 头尾节点一定是最高的节点
++ 要寻找`score=3`的节点时，查找轨迹如红色路线
 
 ## zipmap
 
+![image-20201107161726325](assets/image-20201107161726325.png) 
 
++ 就是k-v键值对一个一个往后放，查找时需要逐个遍历
 
+# 内存用量统计
 
+## 内存划分
+
++ 数据内存
+
+  用于存储数据库中的数据
+
++ 进程内存
+
+  程序运行需要的内存，包括数据内存、缓冲内存、内存碎片、常量池
+
++ 缓冲内存
+
+  数据收发客户端命令时需要使用缓冲内存对命令进行缓冲
+
++ 内存碎片
+
+  数据修改过程中产生的内存碎片
+
+## 内存统计
+
+我们可以在`redis`中使用`info memory`命令查看内存统计数据
+
+我们一般只需要关注如下几个数据：
+
++ `used_memory`
+
+  + 内存分配器分配的总内存大小，包括
+    + 数据内存
+    + 缓冲内存
+    + 虚拟（swap）内存
+  + 不包括内存碎片
+  + `used_memory_human`可以用`MB、KB`等人性化方式表示
+
++ `used_memory_rss`
+
+  + 操作系统给redis进程分配的总内存
+    + 数据内存
+    + 缓冲内存
+    + 内存碎片
+  + 不包括虚拟内存
+
++ `mem_fragmentation_ratio`
+
+  + 内存碎片比例；该值等于`used_memory_rss / used_memory`
+
+  + `redis`刚启动的时候，该值一般很大，因为还没有写入数据
+
+    但是运行一段时间之后，写入了足够多的数据，该值一般为`1.03`左右
+
+    + 大于`1`时表示内存碎片严重
+    + 小于`1`时表示使用了大量的虚拟内存，需要加大给`redis`进程分配的内存
+
+    想要查看内存碎片是不是太大了，需要结合`mem_fragmentation_bytes`和`mem_fragmentation_ratio`一起查看
+
+    + 如果这两个值都很大，说明内存碎片过大
+    + 如果`mem_fragmentation_bytes`并不大，`mem_fragmentation_ratio`很大，说明还是数据没有很多
+
++ `mem_fragmentation_bytes`
+
+  + 内存碎片大小
+
++ `mem_allocator`
+
+  + 内存分配器，默认`jemalloc`，无需修改
 
 
 
