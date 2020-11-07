@@ -367,40 +367,20 @@ typedef struct zskiplistNode {
 
 + `used_memory`
 
-  + 内存分配器分配的总内存大小，包括
-    + 数据内存
-    + 缓冲内存
-    + 虚拟（swap）内存
-  + 不包括内存碎片
+  + 已使用内存
   + `used_memory_human`可以用`MB、KB`等人性化方式表示
 
 + `used_memory_rss`
 
   + 操作系统给redis进程分配的总内存
-    + 数据内存
-    + 缓冲内存
-    + 内存碎片
-  + 不包括虚拟内存
 
 + `mem_fragmentation_ratio`
 
   + 内存碎片比例；该值等于`used_memory_rss / used_memory`
 
-  + `redis`刚启动的时候，该值一般很大，因为还没有写入数据
-
-    但是运行一段时间之后，写入了足够多的数据，该值一般为`1.03`左右
-
-    + 大于`1`时表示内存碎片严重
-    + 小于`1`时表示使用了大量的虚拟内存，需要加大给`redis`进程分配的内存
-
-    想要查看内存碎片是不是太大了，需要结合`mem_fragmentation_bytes`和`mem_fragmentation_ratio`一起查看
-
-    + 如果这两个值都很大，说明内存碎片过大
-    + 如果`mem_fragmentation_bytes`并不大，`mem_fragmentation_ratio`很大，说明还是数据没有很多
-
 + `mem_fragmentation_bytes`
 
-  + 内存碎片大小
+  + 内存碎片大小；就是未使用内存大小
 
 + `mem_allocator`
 
