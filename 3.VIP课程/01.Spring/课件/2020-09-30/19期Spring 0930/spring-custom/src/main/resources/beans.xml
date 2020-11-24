@@ -1,0 +1,24 @@
+<beans>
+	<bean id="userService"
+		class="com.kkb.spring.service.UserServiceImpl">
+		<!-- 引用类型 -->
+		<property name="userDao" ref="userDao"></property>
+	</bean>
+
+	<!-- 该类有一个初始化方法 -->
+	<bean id="userDao" class="com.kkb.spring.dao.UserDaoImpl"
+		init-method="init">
+		<property name="dataSource" ref="dataSource"></property>
+	</bean>
+
+	<!-- 该类有一个初始化方法 -->
+	<bean id="dataSource"
+		class="org.apache.commons.dbcp.BasicDataSource" scope="singleton" >
+		<property name="driverClassName"
+			value="com.mysql.jdbc.Driver"></property>
+		<property name="url"
+			value="jdbc:mysql://47.113.81.149:3306/kkb?characterEncoding=utf-8"></property>
+		<property name="username" value="root"></property>
+		<property name="password" value="kkb0826"></property>
+	</bean>
+</beans>
