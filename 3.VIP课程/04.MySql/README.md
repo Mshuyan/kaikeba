@@ -100,18 +100,19 @@
 + 配置
 
   ```sh
-# 是否启用慢查询
-# 默认值：OFF；可选值 ON|OFF
-# 常用配置：
-slow_query_log=ON
-# 慢查询阈值，单位秒
-# 默认10
-long_query_time=10
-# 慢查询日志文件名
-# 默认值：/{datadir}/{hostname}-slow.log
-# 如果指定文件名没有指定目录，默认目录为{datadir}
-slow_query_log_file=/var/lib/mysql/dc3757bde5bd-slow.log
+  # 是否启用慢查询
+  # 默认值：OFF；可选值 ON|OFF
+  # 常用配置：
+  slow_query_log=ON
+  # 慢查询阈值，单位秒
+  # 默认10
+  long_query_time=10
+  # 慢查询日志文件名
+  # 默认值：/{datadir}/{hostname}-slow.log
+  # 如果指定文件名没有指定目录，默认目录为{datadir}
+  slow_query_log_file=/var/lib/mysql/dc3757bde5bd-slow.log
   ```
+
 
 ## 数据文件
 
@@ -356,13 +357,14 @@ slow_query_log_file=/var/lib/mysql/dc3757bde5bd-slow.log
       # 8.0
       select * from test for share
       ```
-
+```
+  
     + `select`+排他锁
-
+    
       ```sql
       select * from test lock in share mode
-      ```
-
+  ```
+  
     + `insert`、`update`、`delete`操作中都隐式包含了一步当前读
 
 ## 概述
