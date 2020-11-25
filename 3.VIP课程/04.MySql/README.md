@@ -1,7 +1,7 @@
 > + 课程使用`mysql5.7.3`
 > + `mysql`配置文件中不区分`-`和`_`
 
-# 安装
+# MySql安装
 
 + docker
 
@@ -25,7 +25,7 @@
 
   
 
-# 文件结构
+# MySql文件结构
 
 > + `mysql`数据分为日志文件和数据文件，通常放在`var/lib/mysql`目录下
 
@@ -165,7 +165,7 @@
 
   表中索引
 
-# 逻辑架构
+# MySql逻辑架构
 
 ![image-20201120151532914](assets/image-20201120151532914.png) 
 
@@ -405,9 +405,7 @@
 
 
 
-
-
-
+# 事务
 
 > `TODO`
 >
@@ -419,13 +417,13 @@
 >   + https://www.cnblogs.com/rjzheng/p/9950951.html
 >   + https://dev.mysql.com/doc/refman/5.7/en/innodb-locking.html#innodb-intention-locks
 
-# 事务执行流程
+## 事务执行流程
 
 ![image-20201117160501379](assets/image-20201117160501379.png) 
 
-# 事务介绍
+## 事务介绍
 
-## 事务特性（ACID）
+### 事务特性（ACID）
 
 + 原子性（`atomicty`）
 
@@ -445,27 +443,64 @@
 
   事务提交后数据永久有效
 
-## 隔离级别
+### 隔离级别
 
-### 事务之间存在哪些影响
+#### 切换隔离级别
+
+```mysql
+# 查看当前事务级别：
+SELECT @@tx_isolation;
+# 设置read uncommitted级别：
+set session transaction isolation level read uncommitted;
+# 设置read committed级别：
+set session transaction isolation level read committed;
+# 设置repeatable read级别：
+set session transaction isolation level repeatable read;
+# 设置serializable级别：
+set session transaction isolation level serializable;
+```
+
+#### 事务之间存在哪些影响
 
 + 脏读
 
-  一个事务读取到另一个事务中还`未提交`的数据
+  + 一个事务读取到另一个事务中还`未提交`的数据
+
+  + 通过`MVCC`解决，每次获取最新得`read view`
 
 + 不可重复读
 
-  因其他事务提交的`修改和删除`，一个事务中两次读取同一条数据的结果不一致
+  + 因其他事务提交的`修改和删除`，一个事务中两次读取同一条数据的结果不一致
+  + 解决
+    + `RR`级别：通过`MVCC`解决，第一次获取`read view`时缓存起来，后续使用缓存的`read view`；
+    + `Serializable`级别：读写串行执行，不存在不可重复读
 
 + 幻读
 
-  因其他事务提交的`新增`，一个事务中两次读取到的数据不一致
+  + 因其他事务提交的`新增`，一个事务中两次读取到的数据不一致
+  + 解决
+    + `RR`级别
+      
+      + 默认通过`MVCC`解决了`快照读`状态下的幻读，`当前读`状态下的幻读问题还存在
+      
+        ![image-20201125171928719](assets/image-20201125171928719.png) 
+      
+      + `当前读`本身就要求读到最新已提交数据，还想避免幻读，只能通过锁保证事务执行过程中不允许插入
+      
+        可以`select`时使用共享锁或排他锁解决（原理是`间隙锁`）
+      
+    + `Serializable`级别
+    
+      读写串行执行，不存在幻读
 
 + 丢失更新
 
-  两个事务同时执行时，后提交事务`覆盖`了先提交的事务提交的数据
+  + 两个事务同时执行时，后提交事务`覆盖`了先提交的事务提交的数据
+  + 解决
+    + `RC`、`RR`：手动通过悲观锁或乐观锁解决
+    + `Serializable`：`select`自动加`意向共享锁`，不存在丢失更新
 
-### 隔离级别
+#### 隔离级别
 
 + 读未提交（RU）
 
@@ -473,23 +508,32 @@
 
 + 读已提交（RC）
 
-  解决脏读
+  + 通过`MVCC`解决脏读
 
-  `oracle`默认
+  + `oracle`默认
+  + 没有间隙锁
 
 + 可重复读（RR）
 
-  解决脏读、不可重复读
+  + `mysql`默认
 
-  `mysql`默认
+  + 通过`MVCC`解决
+
+    + 脏读
+
+    + 不可重复读
+
+    + 解决了`快照读`状态下的幻读，`当前读`状态下的幻读问题还存在
+
+      `当前读`下的幻读可以`select`时使用共享锁或排他锁解决（原理是`间隙锁`）
 
 + 串行化（`Serializable`）
 
   解决所有问题
 
-# 事务实现方案
+## 事务实现方案
 
-## 术语
+### 术语
 
 + 快照读
 
@@ -514,17 +558,16 @@
       # 8.0
       select * from test for share
       ```
-```
   
     + `select`+排他锁
     
       ```sql
       select * from test lock in share mode
-  ```
-  
+      ```
+
     + `insert`、`update`、`delete`操作中都隐式包含了一步当前读
 
-## 概述
+### 概述
 
 + `InnoDB`使用`LBCC`+ `MVCC`实现的事务
 
@@ -540,6 +583,7 @@
     `LBCC`+`MVCC`方案，
 
     + `select`不加锁
+    + 没有`间隙锁`
     + 每次读取都使用最新的`read view`
 
   + RR
@@ -547,15 +591,46 @@
     `LBCC`+`MVCC`方案，
 
     + `select`不加锁
+    + 有`间隙锁`
     + 第一次读取时将`read view`缓存起来，后续读取时使用缓存的`read view`
 
   + `Serializable`
 
     `LBCC`方案，`select`自动加上`意向共享锁`
 
-+ 模型
 
-  
+## MVCC
+
++ 多版本并发控制（`Multi Version Concurrency Control`）
++ 只能在`读已提交`和`可重复读`两个级别使用
++ 为每个事务中读写的数据行生成独立的快照版数据，读取时只读取自己可见版本数据
++ `InnoDB`中，使用`undo_log`和`read view`实现`MVCC`
+
+### undo_log
+
+
+
+### read view
+
+
+
+### 流程
+
+
+
+### 总结
+
++ 因为每个事务中读写的数据都有对应的快照版本，其他事务是在他自己的快照中进行读写，当前事务依然可以从自己的快照中读取数据，相互隔离，避免加锁
+
++ 相比`LBCC`中`select`加`意向共享锁`的方案，提升了读写、写读操作的性能，也可以通过快照的方式解决了不可重复读的问题
+
++ 但同时引入了另一个问题：
+
+  某字段原本是1，两个事务同时读取并进行加1操作，正确结果应该是3，但是实际结果可能是2
+
+  这个问题只能通过`select`加`意向共享锁`解决
+
+
 
 ## LBCC
 
@@ -599,39 +674,6 @@
 
       意义并不大，不建议使用
 
-## MVCC
-
-+ 多版本并发控制（`Multi Version Concurrency Control`）
-+ 只能在`读已提交`和`可重复读`两个级别使用
-+ 为每个事务中读写的数据行生成独立的快照版数据，读取时只读取自己可见版本数据
-+ `InnoDB`中，使用`undo_log`和`read view`实现`MVCC`
-
-### unco_log
-
-
-
-### read view
-
-
-
-### 流程
-
-
-
-### 总结
-
-+ 因为每个事务中读写的数据都有对应的快照版本，其他事务是在他自己的快照中进行读写，当前事务依然可以从自己的快照中读取数据，相互隔离，避免加锁
-
-+ 相比`LBCC`中`select`加`意向共享锁`的方案，提升了读写、写读操作的性能，也可以通过快照的方式解决了不可重复读的问题
-
-+ 但同时引入了另一个问题：
-
-  某字段原本是1，两个事务同时读取并进行加1操作，正确结果应该是3，但是实际结果可能是2
-
-  这个问题只能通过`select`加`意向共享锁`解决
-
-
-
 
 
 
@@ -649,11 +691,12 @@
   ```sql
   select a,b,c from t where a = 1 and d = 2;
   ```
+```
 
   存储引擎层会使用`a`字段索引进行筛选，然后将查询结果交给`MySqlServer`层
 
   `MySqlServer`层再对`d=2`这个没有用到索引的条件进行筛选
-  
+
 + `explain`时出现`Using where`表示在`MySqlServer`层进行过滤的，其他的是在存储引擎层通过索引树进行过滤的
 
 
@@ -707,7 +750,7 @@
 
     ```sql
     select a,b,c,id from  t_multiple_index where a=13 and b=16;
-    ```
+```
 
     因为组合索引树中包含了`a,b,c,id`字段，所以没必要进行回表操作，查询完直接使用索引树中字段返回
 
