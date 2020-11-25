@@ -1,7 +1,7 @@
 + jvm参数
 + jvm工具
 + redission
-+ mysql4节课
++ mysql 3，4，6节课
 
 # 1120
 
