@@ -357,33 +357,56 @@
 
 + 提交
 
-  + 将当前事务的提交动作记录到`log buffer`中
+  + 将当前事务的`提交动作`记录到`log buffer`中
   
   + 提交时不直接修改硬盘上的数据（随机IO消耗性能），将`log buffer`中记录持久化到磁盘上的`redo_log`文件中，持久化成功才返回`commit`成功；后续异步修改磁盘上的数据，这样既避免数据的丢失，又提高了修改数据的性能
 
 ### redolog落盘时机
 
-通过`innodb_flush_log_at_trx_commit`参数控制，默认1
+- 当`redo log buffer`的数据超过`redo log buffer`容量的一半时
 
-+ 1：等待主线程每秒写入1次
-+ 2：提交时立即写入磁盘
-+ 3：提交时立即写入文件系统缓存，由操作系统决定何时写入磁盘
+- 事务提交的时候
 
-### 作用
+  通过`innodb_flush_log_at_trx_commit`参数控制，默认1
 
-系统崩溃时，内存中已提交但是还没来得及落盘的数据，可以通过`redo log`保证这部分数据不丢失
+  + 1：等待主线程每秒写入1次
+  + 2：提交时立即写入磁盘
+  + 3：提交时立即写入文件系统缓存，由操作系统决定何时写入磁盘
+
+- 每秒一次，Master线程会将`redo log buffer`的数据写出，这个刷出跟事务提交无关，彼此是独立的
+
+- 服务正常关闭的时候
+
+- `checkpoint`的时候
 
 ### 数据恢复
 
 + 对于还没来得及落盘的脏页数据，可以通过重新执行`redo log`中操作进行恢复
++ 上面恢复的数据中可能存在未提交的数据，需要通过`undo log`回滚（这部分没研究明白，不细究了）
 
-+ 恢复过程中存在如下问题：
+#### 未提交的数据落盘
 
-  `redo log`是顺序IO，一个事务执行的操作被写入`log buffer`中了，此时进行了回滚，因为`log buffer`是记录的整个`mysql 服务器`的重做日志，所以没办法删除回滚的操作，当下次提交时，这部分回滚的操作就会被持久化到`redo log`文件中，此时如果脏页还没来得及落盘，发生了系统崩溃，数据恢复时，回滚的操作被执行，将会造成数据错误
+> 以下两种可能都查到了资料，不确定是哪种
 
-+ 这个问题需要配合`undo log`进行解决
++ 未提交的`redo log`落盘
+  + [redolog落盘时机](#redolog落盘时机)中除了`commit`时的落盘，均会造成未提交的`redo_log`落盘
+  + 因为`log buffer`是一大块内存全局顺序写，当一个事务提交时，他前面还没提交的日志也会被落盘
+  + 因为`log buffer`是一大块内存全局顺序写，需要回滚的事务无法再将`redo log`记录删掉，落盘发生时这部分应该回滚的记录也会被落盘
++ `redo log`落盘过程中，文件写一半系统崩溃，等于没提交成功，需要回滚
+  
++ 未提交的脏页落盘
 
-  因为`redo log`中记录操作之前先记录了`undo log`操作，当后面没有发现该事务的提交动作时，认为该事务需要回滚，将根据前面记录的`undo log`操作找到对应的`undo log`日志进行回滚
+  脏页落盘时可能将未提交数据落盘
+
+  参见：https://www.zhihu.com/question/267595935
+
+#### 解决
+
++ 由于生成`undo log`的操作被记录在`redo log`中，`redo log`中如果发现事务尚未提交，可以在`undo log`中找到
+
+#### 疑问
+
+`undo log`是根据`checkpoint`跟脏页一起落盘的，如果`undo log`没来得及落盘，就无法解决**未提交的`redo log`落盘** 
 
 ## 脏页落盘
 
@@ -433,16 +456,6 @@
 
 
 # 事务
-
-> `TODO`
->
-> + 隔离级别是使用锁解决的吗？还是分离出独立缓存？都有那些锁？
-> + 幻读包括删除操作吗？可重复读使用的锁（行锁？）能否阻止删除？
-> + 什么时候使用LBCC和MVCC
-> + 串行化时，select还需要显示上锁吗
-> + 锁，
->   + https://www.cnblogs.com/rjzheng/p/9950951.html
->   + https://dev.mysql.com/doc/refman/5.7/en/innodb-locking.html#innodb-intention-locks
 
 ## 事务执行流程
 
@@ -552,8 +565,10 @@ set session transaction isolation level serializable;
 
     + 不可重复读
 
-    + 解决了`快照读`状态下的幻读，`当前读`状态下的幻读问题还存在
+    + 幻读
 
+      解决了`快照读`状态下的幻读，`当前读`状态下的幻读问题还存在
+      
       `当前读`下的幻读可以`select`时使用共享锁或排他锁解决（原理是`间隙锁`）
 
 + 串行化（`Serializable`）
@@ -652,30 +667,67 @@ set session transaction isolation level serializable;
   + 每当有新事务对某行数据进行修改时，将`内存中数据行`向后串一下，移入`Undo Log`,并将原来的`内存中数据行`复制一份作为新的`内存中数据行`，新的`内存中数据行`：`RowID`保持不变；`事务ID`修改为当前事务ID；`回滚指针`指向原来的`内存中数据行`
   + `update undo log`是指执行`update`、`delete`操作时产生的`undo log`
   + 事务提交后，`undo log`中旧版本不能立即删除，因为还有其他事务需要读取（参见`不可重复读`），需要后续执行`purge`操作进行回收
+    + 猜测是没有任何1个未提交事务的事务ID直接大于某个事务的时，这个事务就可以删除了
+    + 8 > 5 > 2；则8直接大于5，间接大于2
 
++ `insert undo log`
+
+  + 事务中`insert`的数据本身就对其他事务不可见，提交后可以直接删除掉`insert undo log`记录
+  + 这块不理解，本来就没有，哪来的老版本，何谈删除
+  
 + 持久化
 
-  
+  数据恢复时，对未提交的落盘数据进行回滚
 
-  
+  参见：[数据恢复](#数据恢复) 
 
 ### read view
 
++ `read view`就是从多个版本中筛选出来的最终可见版本
 
++ 每次执行`select`时生成`read view`
 
-### purge
++ 筛选规则
 
+  + mysql维护了如下几个变量：
 
+    + `m_ids`：全局未提交的事务id列表
+    + `m_up_limit_id`：`m_ids`中最小的事务id
+    + `m_low_limit_id`：生成`read view`时，系统要产生的下一个事务id
+    + `m_creator_trx_id`：当前事务id
 
+  + 遍历版本链，用被访问版本的事务id与上述值比较：
 
+    + 被访问版本的事务id`小于` `m_up_limit_id`时，该版本可见
 
-### 流程
+      已提交版本
 
+    + 被访问版本的事务id`等于` `m_creator_trx_id`时，该版本可见
 
+      当前事务版本
+
+    + 被访问版本的事务id在`m_up_limit_id`和`m_low_limit_id`之间时
+
+      + 在`m_ids`中，不可见
+
+        未提交版本
+
+      + 不在`m_ids`中，可见
+
+        已提交版本
+
+    + 被访问版本的事务id`大于等于` `m_low_limit_id`时，该版本不可见
+
+      生成`read view`时，还没有产生这个版本
+
+  + 遍历结束后，找到事务ID最大的可见版本就是最终的`read view`
+
++ `RC`和`RR`在不可重复读问题上的区别在于
+
+  + `RC`每次查询获取最新的`read view`
+  + `RR`第一次查询将`read view`缓存，后续使用缓存起来的`read view`
 
 ### 总结
-
-+ 因为每个事务中读写的数据都有对应的快照版本，其他事务是在他自己的快照中进行读写，当前事务依然可以从自己的快照中读取数据，相互隔离，避免加锁
 
 + 相比`LBCC`中`select`加`意向共享锁`的方案，提升了读写、写读操作的性能，也可以通过快照的方式解决了不可重复读的问题
 
@@ -685,43 +737,12 @@ set session transaction isolation level serializable;
 
   这个问题只能通过`select`加`意向共享锁`解决
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## LBCC
 
 + 基于锁的并发控制（`Lock Based Concurrency Control`）
++ 资料
+  + https://www.cnblogs.com/rjzheng/p/9950951.html
+  + https://dev.mysql.com/doc/refman/5.7/en/innodb-locking.html#innodb-intention-locks
 
 ### 锁
 
