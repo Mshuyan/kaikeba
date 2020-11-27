@@ -3,11 +3,28 @@
 # 分类
 
 + 标准参数
+  
   + 通过`java`命令即可查看
 + 非标准参数
+  
   + 通过`java -X`查看
 + 非stable参数
+  
   + 通过`java -XX:+PrintFlagsFinal`查看
+  
+  + 类型
+  
+    + boolean型
+  
+      使用`+-`表示启用或禁用该参数
+  
+      如：`-XX:+DisableExplicitGC`
+  
+    + 非boolean型
+  
+      使用表达式
+  
+      如：`-XX:NewRatio=1`
 
 # 标准参数
 
