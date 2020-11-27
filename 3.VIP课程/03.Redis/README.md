@@ -291,9 +291,9 @@ typedef struct zskiplistNode {
 
 
 
-# 数据结构
+## 数据结构
 
-## 字典（hashtable）
+### 字典（hashtable）
 
 ![image-20201106145050543](assets/image-20201106145050543.png) 
 
@@ -301,7 +301,7 @@ typedef struct zskiplistNode {
 
 + `redis`中`hashtable`上面加了两层，主要目的是准备两个哈希桶，用于实现扩容时的[渐进rehash](https://github.com/Mshuyan/redis#%E6%B8%90%E8%BF%9Brehash) 
 
-## ziplist
+### ziplist
 
 ![image-20201107105930651](assets/image-20201107105930651.png) 
 
@@ -320,20 +320,20 @@ typedef struct zskiplistNode {
     + `p`：数据内容；这里实际不是指针，就是数组，内容就存在接下来的内存区域
 + 插入、修改、删除操作，是需要大量内存拷贝的
 
-## quicklist
+### quicklist
 
 ![image-20201107140242085](assets/image-20201107140242085.png) 
 
 + `quicklist`就是`双向链表`+`ziplist`
 
-## skiplist
+### skiplist
 
 ![](assets/zskiplist.png) 
 
 + 头尾节点一定是最高的节点
 + 要寻找`score=3`的节点时，查找轨迹如红色路线
 
-## zipmap
+### zipmap
 
 ![image-20201107161726325](assets/image-20201107161726325.png) 
 
@@ -729,6 +729,7 @@ public boolean tryLock_with_set(String key, String UniqueId, int seconds) {
 
 ### Redisson
 
++ 参考资料：https://www.bookstack.cn/books/redisson-wiki-zh
 + `redisson`是`redis`客户端，比`jsdis`和`lettuce`好，强烈推荐
 + `redisson`支持可重入锁、公平锁、读写锁、联锁、红锁
 
