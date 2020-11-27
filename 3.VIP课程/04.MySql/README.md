@@ -799,7 +799,6 @@ set session transaction isolation level serializable;
   ```sql
   select a,b,c from t where a = 1 and d = 2;
   ```
-```
 
   存储引擎层会使用`a`字段索引进行筛选，然后将查询结果交给`MySqlServer`层
 
@@ -858,7 +857,7 @@ set session transaction isolation level serializable;
 
     ```sql
     select a,b,c,id from  t_multiple_index where a=13 and b=16;
-```
+    ```
 
     因为组合索引树中包含了`a,b,c,id`字段，所以没必要进行回表操作，查询完直接使用索引树中字段返回
 
@@ -919,9 +918,8 @@ set session transaction isolation level serializable;
   + 例
 
     ```sql
-    select * from p_user_2 
-    where [not] EXISTS (select id from p_user where id = p_user_2.id )
-    # 如果 p_user 中存在关联记录，则返回 p_user_2 表中对应记录
+    -- 如果 p_user 中存在关联记录，则返回 p_user_2 表中对应记录
+    select * from p_user_2 where [not] EXISTS (select id from p_user where id = p_user_2.id )
     ```
 
 + `exists`与`in`
@@ -1021,7 +1019,6 @@ Like百分写最右，覆盖索引不写星；
 
 + 兼容性
 
-  
 
 ##### 自增锁
 
@@ -1039,16 +1036,3 @@ Like百分写最右，覆盖索引不写星；
 #### 共享锁
 
 #### 排他锁
-
-
-
-
-
-
-
-
-
-
-
-
-
