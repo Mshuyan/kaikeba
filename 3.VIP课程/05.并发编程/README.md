@@ -51,7 +51,47 @@
 
 ## 可见性
 
+### 测试
 
++ 根据`JMM`，两个线程都将主内存中变量读取到工作内存后，一个线程修改变量的值后立即写回主内存，但是另一个线程并不知道这个变量已经被修改
+
++ demo
+
+  ```java
+  public class VolatileDemo1 {
+      public static int number = 0;
+  
+      public static void main(String[] args) {
+          new Thread(()->{
+              try {
+                  // 让主线程先读取主内存中变量值
+                  sleep(20);
+              } catch (InterruptedException ignore) {}
+              // 修改并写回主内存
+              number += 1;
+          },"test").start();
+  
+          // 因为主线程不知道主内存中变量已被修改，会死在这
+          while(number == 0){
+          }
+          System.out.println(Thread.currentThread().getName() + "\t int类型的number最终值：" + number);
+      }
+  }
+  ```
+
++ `number`使用`volatile`修饰即可解决
+
+### 原理
+
++ `volatile`变量被修改并写回主内存后，会立即通知其他线程重新加载该变量的值
+
+### synchronized
+
++ 上述代码在`while`循环中加入`System.out.println();`后，即使不使用`volatile`关键字，也不存在可见性问题了
++ 原因是`System.out.println();`中使用了`synchronized`
++ `synchronized`关键字有2个作用：
+  + 进入代码块之前，先清空工作内存中共享变量，重新从主内存加载
+  + 代码块加上同步锁
 
 ## 有序性
 

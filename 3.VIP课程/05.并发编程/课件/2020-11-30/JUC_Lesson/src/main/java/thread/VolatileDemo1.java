@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.lang.Thread.sleep;
 
 public class VolatileDemo1 {
-    public static Integer numner = 0;
+    public static int numner = 0;
 
     @SuppressWarnings("AlibabaAvoidManuallyCreateThread")
     public static void main(String[] args) {
@@ -20,11 +20,10 @@ public class VolatileDemo1 {
         },"test").start();
 
         while(numner == 0){
-            synchronized (VolatileDemo1.class){
-            }
+//            synchronized (VolatileDemo1.class){
+//            }
+            System.out.println();
         }
-
         System.out.println(Thread.currentThread().getName() + "\t int类型的number最终值：" + numner);
     }
-
 }
