@@ -266,11 +266,9 @@
   + 判断主内存中的值是否与期望值相同，相同则修改为另一个值，不同则不断重试
   + 这个过程是原子操作
 
-## 源码解读
+## AtomicInteger
 
-### AtomicInteger
-
-#### 初始化
+### 初始化
 
 ```java
 // 获取1个静态unsafe对象
@@ -293,7 +291,7 @@ static {
 private volatile int value;
 ```
 
-#### getAndIncrement
+### getAndIncrement
 
 ```java
 // i++ 操作
@@ -307,16 +305,14 @@ public final int getAndIncrement() {
 + 传送门
   + [unsafe.getAndAddInt](#getAndAddInt) 
 
-### Unsafe类
+## Unsafe类
 
-#### 介绍
+### 介绍
 
 + 该类中的方法都是实现`CAS`操作的本地方法，直接操作内存
 + java中所有原子类底层调用的都是这个类中的本地方法实现
 
-#### 源码解读
-
-##### getAndAddInt
+### getAndAddInt
 
 ```java
 /**
@@ -338,7 +334,172 @@ public final int getAndAddInt(Object var1, long var2, int var4) {
 }
 ```
 
-## 缺点
+## AtomicReference
+
++ 初始化流程与[AtomiceInteger](#初始化)相同
+
++ `compareAndSet`
+
+  ```java
+  // 对比并设置
+  public final boolean compareAndSet(V expect, V update) {
+      // 底层调用 unsafe 中的本地方法
+      return unsafe.compareAndSwapObject(this, valueOffset, expect, update);
+  }
+  ```
+
+  + `AtomicReference`中`value`值存储的是对象的引用地址，也就是**当`V`类型对象的引用被修改时，可以保证原子性，但是`V`类型对象内部数据发生变化，是不受控制的**
+  + `对比`也是对比的引用地址是否相同，而不会使用`equals`方法对比
+
+## CAS缺点
 
 + `CAS`操作实际上是1种`自旋锁`，线程很多得时候会出现一直不成功得情况，开销较大
 + 仅适用于对1个变量操作，对多个变量操作时无法保证原子性
++ 存在[ABA问题](#ABA问题)
+
+## ABA问题
+
+### 描述
+
++ CAS操作过程如下
+
+  + 获取主内存中变量值为`A`
+  + 以`A`作为期望值，对比主内存中值是否与期望值相同，相同则修改为新值，否则失败
+
++ 在上述过程中，第一二步之间可能存在该变量值被修改为`B`后立即又被修改回`A`的情况，此时执行第二步时并不会察觉这个值被修改过。这就是**ABA问题** 
+
++ 有时我们是不希望第一二步之间变量值被修改的，如：
+
+  + 现有1个通过链表实现的栈结构：
+
+    head -> A -> B -> C
+
+  + 线程1获取栈顶为A，此时线程1将cpu交给线程2
+
+  + 线程2将A和B依次弹出栈顶，然后将A重新压入栈顶，栈结构变为：
+
+    head -> A -> C
+
+    此时将cpu重新交回线程1
+
+  + 线程1使用期望值A将栈顶元素更新为D，栈结构变为：
+
+    head -> D -> C
+
+    而线程1期望的结果是：
+
+    head -> D -> B -> C
+
+### 解决方案
+
+#### 我的思路
+
++ 解决`ABA`问题的关键在于，保证每次修改后变量值不会再变回原来的值
++ 可以每次修改时，将要保存的值作为属性封装到另外一个对象中，这个对象每次修改都是重新创建的，通过`UNSAFE.compareAndSwapObject`方法进行比较替换原子操作
+
+#### AtomicStampedReference
+
++ 在`AtomicReference`基础上，保存数据同时可以提供版本号；根据版本号的控制，可以在引用再次被设置回以前的值时，指定不同的版本号，就能保证`引用+版本号`这个整体跟之前是不同的值，就能进行`CAS`操作了
+
++ 初始化
+
+  ```java
+  // 定义1个私有内部类，用于封装要保存的数据
+  private static class Pair<T> {
+      // 要保存的数据
+      final T reference;
+      // 版本号
+      final int stamp;
+      private Pair(T reference, int stamp) {
+          this.reference = reference;
+          this.stamp = stamp;
+      }
+      static <T> Pair<T> of(T reference, int stamp) {
+          return new Pair<T>(reference, stamp);
+      }
+  }
+  
+  // 保存的是封装后的数据
+  private volatile Pair<V> pair;
+  ```
+
++ `compareAndSet`
+
+  ```java
+  /**
+   * 比较并设置
+   * @param expectedReference 期望对象
+   * @param newReference 新对象
+   * @param expectedStamp 期望版本
+   * @param newStamp 新版本
+   */
+  public boolean compareAndSet(V   expectedReference,
+                               V   newReference,
+                               int expectedStamp,
+                               int newStamp) {
+      Pair<V> current = pair;
+      return
+          expectedReference == current.reference &&
+          expectedStamp == current.stamp &&
+          ((newReference == current.reference &&
+            newStamp == current.stamp) ||
+           casPair(current, Pair.of(newReference, newStamp)));
+  }
+  ```
+
+#### AtomicMarkableReference
+
++ `AtomicStampedReference`的简化版，把版本号换成了布尔值
+
+# 线程安全集合
+
+## CopyOnWriteArrayList
+
++ `ArrayList`是线程不安全的集合，解决方案：
+
+  + `Vector`
+    + 不推荐
+    + 底层通过`synchronized`实现，太重了
+  + `Collections.synchronizedList()`
+    + 不推荐
+    + 底层通过`synchronized`实现，太重了
+  + `CopyOnWriteArrayList`
+    + 推荐
+    + 通过`写时复制`实现`读写分离`，保证线程安全
+
++ demo
+
+  ```java
+  public boolean add(E e) {
+      final ReentrantLock lock = this.lock;
+      // 上锁
+      lock.lock();
+      try {
+          Object[] elements = getArray();
+          int len = elements.length;
+          // 原数组复制到新数组，并且新数组长度+1
+          Object[] newElements = Arrays.copyOf(elements, len + 1);
+          // 元素加入新数组
+          newElements[len] = e;
+          // 集合指向新数组
+          setArray(newElements);
+          return true;
+      } finally {
+          // 解锁
+          lock.unlock();
+      }
+  }
+  ```
+
++ 写的时候上锁，保证了线程安全
+
++ 写时复制，保证了写过程中还可以并发读取，串行写，并行读，实现读写分离，提高性能
+
+## CopyOnWriteArraySet
+
++ 同`CopyOnWriteArrayList`
+
+## ConcurrentHashMap
+
+同`CopyOnWriteArrayList`
+
