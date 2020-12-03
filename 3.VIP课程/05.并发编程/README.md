@@ -22,9 +22,11 @@
 
 + `JMM`是java内存模型`java memory model`得缩写
 
-+ 多线程访问同一个份数据时，这份数据是存储在`主内存`（堆）中得，每个线程有一个`工作内存`（栈），每个线程访问这个数据时，会将数据从主内存拷贝到工作内存，修改后立即同步给主内存
++ 多线程访问同一个变量时，这个变量是存储在`主内存`（堆）中得，每个线程有一个`工作内存`（栈），每个线程访问这个变量时，会将变量从主内存拷贝到工作内存，修改后立即同步给主内存
 
   ![image-20201201144435021](assets/image-20201201144435021.png) 
+
++ **工作内存中拷贝的是对象中的变量，不是对象** 
 
 + `JMM`中比较重要得3个概念：
 
@@ -264,7 +266,79 @@
   + 判断主内存中的值是否与期望值相同，相同则修改为另一个值，不同则不断重试
   + 这个过程是原子操作
 
-## Unsafe类
+## 源码解读
 
-+ 该类中的方法都是实现`CAS`操作的本地方法
+### AtomicInteger
+
+#### 初始化
+
+```java
+// 获取1个静态unsafe对象
+private static final Unsafe unsafe = Unsafe.getUnsafe();
+// 记录当前类对象中，value 属性相对于对象首地址的偏移量
+private static final long valueOffset;
+
+// 静态代码块，类加载时执行1次
+static {
+    try {
+        // 通过 value 字段的属性信息计算出：
+        // 创建1个 AtomicInteger 对象时， 其中的 value 属性相对于该对象首地址的偏移量
+        valueOffset = unsafe.objectFieldOffset
+            // 获取 AtomicInteger 类中 value 字段的属性信息，返回值为 Field 类型
+            (AtomicInteger.class.getDeclaredField("value"));
+    } catch (Exception ex) { throw new Error(ex); }
+}
+
+// volatile变量，保证内存可见性
+private volatile int value;
+```
+
+#### getAndIncrement
+
+```java
+// i++ 操作
+public final int getAndIncrement() {
+    // 底层调用 unsafe 中得本地方法
+    return unsafe.getAndAddInt(this, valueOffset, 1);
+}
+```
+
++ `JMM`模型中，拷贝到工作内存的是变量（这里指`value`字段），而不是对象，所以`this`指向的是主内存中的对象，这里修改的也是主内存中对象中的`value`值；因为`value`是`volatile`变量，修改后会立即通知其他线程，所以不必担心可见性问题
++ 传送门
+  + [unsafe.getAndAddInt](#getAndAddInt) 
+
+### Unsafe类
+
+#### 介绍
+
++ 该类中的方法都是实现`CAS`操作的本地方法，直接操作内存
 + java中所有原子类底层调用的都是这个类中的本地方法实现
+
+#### 源码解读
+
+##### getAndAddInt
+
+```java
+/**
+ * 获取并自增指定值
+ * @param var1 要操作得对象
+ * @param var2 相对偏移量
+ * @param var4 自增值
+ */
+public final int getAndAddInt(Object var1, long var2, int var4) {
+    int var5;
+    do {
+        // 获取要操作变量得值
+        var5 = this.getIntVolatile(var1, var2);
+        // 如果要操作得变量值等于 var5 ，则将该值修改为 var5+var4
+        // 修改失败就一直重复该步骤
+    } while(!this.compareAndSwapInt(var1, var2, var5, var5 + var4));
+
+    return var5;
+}
+```
+
+## 缺点
+
++ `CAS`操作实际上是1种`自旋锁`，线程很多得时候会出现一直不成功得情况，开销较大
++ 仅适用于对1个变量操作，对多个变量操作时无法保证原子性
