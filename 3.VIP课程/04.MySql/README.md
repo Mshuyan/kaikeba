@@ -1260,3 +1260,264 @@ Like百分写最右，覆盖索引不写星；
     + 增加优化器选择时间
 + 最终是否走不走索引，看的是索引字段的区分度，如果索引字段不能帮助筛选掉大部分数据，就没必要走索引了
 + 主键建议使用自增长长整型，主键长度长会导致1个索引页中存储得节点更少，增加磁盘IO
+
+# 性能优化
+
+## 性能优化思路
+
++ 慢查询日志查看执行时间较长sql语句
+
+## 慢查询日志
+
++ 启用参见[慢查询日志](#慢查询日志)
+
++ 慢查询日志查看工具
+
+  ```sh
+  $ mysqldumpslow -s t -t 10 -g "left join" /var/lib/mysql/slow
+  ```
+
+  + `-s`：排序方式
+    + `al`：平均锁定时间
+    + `ar`：平均返回记录时间
+    + `at`：平均查询时间（默认）
+    + `c`：计数
+    + `l`：锁定时间
+    + `r`：返回记录
+    + `t`：查询时间
+  + `-t`：返回前面多少条记录
+  + `-g`：正则匹配规则
+
+## 执行计划
+
+### 介绍
+
++ 查询语句在`server`层会进行优化，`explain`分析的是优化后的sql
+
+  当你的sql被优化时，看到的执行计划可能和sql有出入，此时应该想办法对sql进行改进
+
+### 列说明
+
++ `id`
+
+  + 每个查询单位自动分配1个id
+  + 1个查询语句解析之后会被分解成多个查询单位，有些查询单位可以一起执行，有些查询单位需要依赖于其他查询单位的执行结果，所以这些查询单位是分批次执行的
+  + 越先执行的批次id越大，同一批次执行的id相同
+  + `union`查询时会有`id`为`null`的行，表示对结果进行组合，因为他不参与查询，所以`id`为`null`
+  + id越大，优先级越高，id相同时，由上至下执行
+
++ `select_type`(重要)
+
+  + 查询类型
+
+  + 可选值
+
+    + `simple`
+
+      + 简单查询
+
+      + 表示不需要`union`操作或者不包含子查询的简单`select`查询
+
+      + 示例
+
+        ```sh
+        mysql> explain select * from test;
+        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
+        | id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows | filtered | Extra |
+        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
+        |  1 | SIMPLE      | test  | NULL       | ALL  | NULL          | NULL | NULL    | NULL |    4 |   100.00 | NULL  |
+        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
+        1 row in set (0.04 sec)
+        ```
+
+    + `primary`
+
+      + 一个需要`union`操作或者含有子查询的`select`，位于最外层的单位查询的`select_type`即为`primary`
+
+      + 示例
+
+        ```sh
+        mysql> explain select text from test where id = (select id from test where id = 1);
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
+        |  2 | SUBQUERY    | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | Using index |
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        2 rows in set (0.06 sec)
+        ```
+
+    + `subquery`
+
+      + 表示不需要`union`操作或者不包含子查询的简单子查询，相当于子查询中的`simple`类型
+
+      + 示例
+
+        ```sh
+        mysql> explain select text from test where id = (select id from test where id = 1);
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
+        |  2 | SUBQUERY    | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | Using index |
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        2 rows in set (0.06 sec)
+        ```
+
+    + `union`
+
+      + `union`连接的多个查询，除了第一个都是`union`
+
+      + 示例
+
+        ```sh
+        mysql> explain select id from  (select id from test1 union select id from test) c;
+        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+        | id   | select_type  | table      | partitions | type  | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
+        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+        |    1 | PRIMARY      | <derived2> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL |    8 |   100.00 | NULL            |
+        |    2 | DERIVED      | test1      | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
+        |    3 | UNION        | test       | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
+        | NULL | UNION RESULT | <union2,3> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
+        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+        4 rows in set (0.07 sec)
+        ```
+
+    + `union result`
+
+      + 将`union`结果进行组合时，`select_type`就是`union result`，此时`id`一定为`null`
+
+      + 示例
+
+        ```sh
+        mysql> explain select id from  (select id from test1 union select id from test) c;
+        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+        | id   | select_type  | table      | partitions | type  | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
+        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+        |    1 | PRIMARY      | <derived2> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL |    8 |   100.00 | NULL            |
+        |    2 | DERIVED      | test1      | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
+        |    3 | UNION        | test       | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
+        | NULL | UNION RESULT | <union2,3> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
+        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+        4 rows in set (0.07 sec)
+        ```
+
+    + `dependent union`
+
+      + 与`union`类似，此时需要依赖于外部查询
+
+      + 示例
+
+        ```sh
+        mysql> explain select text from test where id in (select id from test1 union select id from test);
+        +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
+        | id   | select_type        | table      | partitions | type   | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
+        +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
+        |    1 | PRIMARY            | test       | NULL       | ALL    | NULL          | NULL    | NULL    | NULL |    4 |   100.00 | Using where     |
+        |    2 | DEPENDENT SUBQUERY | test1      | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | func |    1 |   100.00 | Using index     |
+        |    3 | DEPENDENT UNION    | test       | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | func |    1 |   100.00 | Using index     |
+        | NULL | UNION RESULT       | <union2,3> | NULL       | ALL    | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
+        +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
+        4 rows in set (0.07 sec)
+        ```
+
+        这条语句看起来没有依赖外部查询，其实被优化成下面这样了
+
+        ```sql
+        select text from test as t1 where exists (select id from test1 as t11 where t11.id = t1.id union select id from test as t2 where t2.id = t1.id);
+        ```
+
+    + `dependent subquery`
+
+      + 与`subquery`类似，此时需要依赖于外部查询
+
+      + 示例
+
+        ```sh
+        mysql> explain select text from test as t1 where exists (select id from test1 as t11 where t11.id = t1.id union select id from test as t2 where t2.id = t1.id);
+        +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
+        | id   | select_type        | table      | partitions | type   | possible_keys | key     | key_len | ref        | rows | filtered | Extra           |
+        +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
+        |    1 | PRIMARY            | t1         | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       |    4 |   100.00 | Using where     |
+        |    2 | DEPENDENT SUBQUERY | t11        | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.id |    1 |   100.00 | Using index     |
+        |    3 | DEPENDENT UNION    | t2         | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.id |    1 |   100.00 | Using index     |
+        | NULL | UNION RESULT       | <union2,3> | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       | NULL | NULL     | Using temporary |
+        +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
+        4 rows in set (0.08 sec)
+        ```
+
+    + `derived`
+
+      查询过程中产生的中间表，5.7中已经取消了
+
++ `table`
+
+  查询单位对应的表
+
++ `partitions`
+
+  分区表需要使用的列，不建议使用分区表，这列可忽略
+
++ `type`（重要）
+
+  + 每个查询单位的访问类型
+
+  + 可选值（访问性能由高到低排序）
+
+    + `system`
+
+      派生表中的`const`类型显示为`system`，5.7中已移除，可忽略
+
+    + `const`
+
+      + 在唯一索引或主键上进行等值查询时，`type`为`const`
+
+      + 示例
+
+        ```sh
+        mysql> explain select * from test where id = (select id from test where text = '33');
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
+        |  2 | SUBQUERY    | test  | NULL       | ALL   | NULL          | NULL    | NULL    | NULL  |    4 |    25.00 | Using where |
+        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+        2 rows in set (0.13 sec)
+        ```
+
+    + `eq_ref`
+
+      + 两个表根据主键或唯一索引进行关联
+
+      + 示例
+
+        ```sh
+        
+        ```
+
+        
+
+    + `ref`
+
+    + `fulltext`
+
+    + `ref_or_null`
+
+    + `unique_subquery`
+
+    + `index_subquery`
+
+    + `range`
+
+    + `index_merge`
+
+    + `index`
+
+    + `ALL`
+
+  + 除了`ALL`都可以用到索引
+
+  + 除了`index_merge`，其他都只用到1个索引
+
+  + 最起码达到`range`级别
+
