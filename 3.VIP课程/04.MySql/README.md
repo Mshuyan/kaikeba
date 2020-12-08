@@ -1068,7 +1068,6 @@ set session transaction isolation level serializable;
 
   `MySqlServer`层再对`d=2`这个没有用到索引的条件进行筛选
 
-+ `explain`时出现`Using where`表示在`MySqlServer`层进行过滤的，其他的是在存储引擎层通过索引树进行过滤的
 
 ## 索引数据结构
 
@@ -1237,7 +1236,31 @@ set session transaction isolation level serializable;
 
 ### or
 
-+ or得条件如果属于同一张表，则走索引；否则不走索引
++ 大多数情况下不走索引，以下除外
+  + 其中一个条件判断`is null`时，可以忽略该条件，看作只有另外的一个条件
+  + 主键字段，如`id<0 or id>3`
+
+### left join
+
++ 开发中常见的1个需求
+
+  B为A的扩展表
+
+  ```sql
+  select * from A as s left join B as b on b.id = a.id
+  ```
+
+  + 如果A中有的记录，B中一定有对应记录，则B表执行计划的`type`为`eq_ref`或`ref`
+
+  + 如果A中有的记录，B中未必有对应记录，则会直接造成B表的全表扫描，此时，只需要在`on`中添加1个B表中索引列的筛选条件（可以起不到任何过滤作用），即可变回`eq_ref`或`ref`
+
+  ```sql
+  select * from A as s left join B as b on b.id = a.id and b.id > 0
+  ```
+
+### count
+
++ count查询尽量避免使用主键索引，参见[count(*)优化](https://github.com/Mshuyan/database/blob/master/%E6%95%B0%E6%8D%AE%E5%BA%93%E8%AE%BE%E8%AE%A1%E4%B8%8E%E4%BC%98%E5%8C%96.md#count%E4%BC%98%E5%8C%96) 
 
 ## 索引总结
 
@@ -1246,7 +1269,7 @@ set session transaction isolation level serializable;
 带头大哥不能死，中间兄弟不能断；
 索引列上不计算，范围之后全失效；
 Like百分写最右，覆盖索引不写星；
-不等空值还有OR，索引失效要少用.（这句不准确，仅作参考）
+不等空值还有OR，索引失效要少用.
 ```
 
 + 隐式类型转换属于计算，会造成索引失效
@@ -1468,9 +1491,11 @@ Like百分写最右，覆盖索引不写星；
 
       派生表中的`const`类型显示为`system`，5.7中已移除，可忽略
 
-    + `const`
+    + `const`（重要）
 
       + 在唯一索引或主键上进行等值查询时，`type`为`const`
+
+      + 通过索引值可以直接定位唯一一条对应记录
 
       + 示例
 
@@ -1485,39 +1510,162 @@ Like百分写最右，覆盖索引不写星；
         2 rows in set (0.13 sec)
         ```
 
-    + `eq_ref`
+    + `eq_ref`（重要）
 
-      + 两个表根据主键或唯一索引进行关联
+      + 多表关联时，如果后执行的查询单位的关联条件是主键或非空唯一索引，则后执行的查询单位的`type`为`eq_ref`
+
+      + 连接方式与执行顺序
+
+        + `inner join`会自动先执行小表
+        + `left join`一定先执行左表
+        + `right join`一定先执行右表
+
+      + 当后执行的查询单位索引中不能包含所有先执行查询单位返回的关联值时，后执行的查询单位`type`会变为`ALL`，只需要在`on`中添加1个后执行的查询单位对应表中索引列的筛选条件（可以起不到任何筛选作用），如`id>0`，即可变回`eq_ref`
+
+      + 通过索引值可以直接定位唯一一条对应记录
+
+      + 示例
+
+        + 表`test`和`test1`具有相同的表结构：
+
+          ```SQL
+          CREATE TABLE `test`  (
+            `id` int(11) NOT NULL,
+            `text` varchar(255) NULL DEFAULT NULL,
+            `ref` int(11) NULL DEFAULT NULL,
+            PRIMARY KEY (`id`) USING BTREE
+          ) ENGINE = InnoDB
+          ```
+
+        + `test`数据
+
+          ```
+          id  text  ref
+          1	 tt    1
+          2	 ll	   2
+          3    gg    3
+          ```
+
+        + `test1`数据
+
+          ```
+          id  text  ref
+          1	 tt    1
+          2	 ll	   2
+          ```
+
+        + 几个示例如下
+
+          ```sh
+          mysql> explain select * from test1 as t1 left join test as t on t1.ref=t.id;
+          +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
+          | id | select_type | table | partitions | type   | possible_keys | key     | key_len | ref         | rows | filtered | Extra |
+          +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
+          |  1 | SIMPLE      | t1    | NULL       | ALL    | NULL          | NULL    | NULL    | NULL        |    2 |   100.00 | NULL  |
+          |  1 | SIMPLE      | t     | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.ref |    1 |   100.00 | NULL  |
+          +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
+          2 rows in set (0.05 sec)
+          
+          mysql> explain select * from test as t left join test1 as t1 on t.ref=t1.id;
+          +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
+          | id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows | filtered | Extra                                              |
+          +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
+          |  1 | SIMPLE      | t     | NULL       | ALL  | NULL          | NULL | NULL    | NULL |    4 |   100.00 | NULL                                               |
+          |  1 | SIMPLE      | t1    | NULL       | ALL  | PRIMARY       | NULL | NULL    | NULL |    2 |   100.00 | Using where; Using join buffer (Block Nested Loop) |
+          +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
+          2 rows in set (0.05 sec)
+          
+          # test1的索引1,2中不包含所有test表返回的关联值1,2,3，所以变成全表扫描了
+          # 此时只需在 on 中添加1个test1表中索引列的筛选条件即可恢复为 eq_ref，其实这个条件起不到任何过滤作用
+          
+          mysql> explain select * from test as t left join test1 as t1 on t.ref=t1.id and t1.id > 0;
+          +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
+          | id | select_type | table | partitions | type   | possible_keys | key     | key_len | ref        | rows | filtered | Extra       |
+          +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
+          |  1 | SIMPLE      | t     | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       |    6 |   100.00 | NULL        |
+          |  1 | SIMPLE      | t1    | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t.ref |    1 |   100.00 | Using where |
+          +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
+          2 rows in set (0.08 sec)
+          ```
+
+    + `ref`（重要）
+
+      + 如下两种情况会出现
+
+        + 多表关联
+
+          如果后执行的查询单位的关联条件是`非唯一性索引`，则后执行的查询单位的`type`为`ref`
+
+        + 等值查询
+
+          使用`非唯一性索引`进行等值查询时，`type`为`ref`
+
+      + 这里的`非唯一性索引`包含如下情况：
+
+        + `NORMAL`索引
+        + 组合唯一索引
+        + 允许为空的唯一索引（仅针对多表关联）
+
+      + 当后执行的查询单位索引中不能包含所有先执行查询单位返回的关联值时，后执行的查询单位`type`会变为`ALL`，只需要在`on`中添加1个后执行的查询单位对应表中索引列的筛选条件（可以起不到任何筛选作用），如`id>0`，即可变回`ref`
+
+      + 通过索引值可以定位多条对应记录
 
       + 示例
 
         ```sh
+        # test表text字段有普通索引
+        mysql> explain select * from test1 as t1 left join test as t on t.text = t1.text;
+        +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
+        | id | select_type | table | partitions | type | possible_keys | key        | key_len | ref          | rows | filtered | Extra |
+        +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
+        |  1 | SIMPLE      | t1    | NULL       | ALL  | NULL          | NULL       | NULL    | NULL         |    2 |   100.00 | NULL  |
+        |  1 | SIMPLE      | t     | NULL       | ref  | index_text    | index_text | 258     | test.t1.text |    1 |   100.00 | NULL  |
+        +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
+        2 rows in set (0.06 sec)
         
+        # test1表text和ref字段具有联合唯一索引
+        mysql> explain select * from test1 where text = '33';
+        +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
+        | id | select_type | table | partitions | type | possible_keys | key        | key_len | ref   | rows | filtered | Extra |
+        +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
+        |  1 | SIMPLE      | test1 | NULL       | ref  | index_text    | index_text | 257     | const |    1 |   100.00 | NULL  |
+        +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
+        1 row in set (0.06 sec)
         ```
-
-        
-
-    + `ref`
 
     + `fulltext`
 
+      全文索引的优先级很高，若全文索引和普通索引同时存在时，mysql不管代价，优先选择使用全文索引
+
     + `ref_or_null`
+
+      在`ref`基础上增加了`null`值比较
 
     + `unique_subquery`
 
+      用于where中的in形式子查询，子查询返回不重复值唯一值
+
     + `index_subquery`
 
-    + `range`
+      用于in形式子查询使用到了辅助索引或者in常数列表，子查询可能返回重复值，可以使用索引将子查询去重
+
+    + `range`（重要）
+
+      范围扫描，常见于`>、<、between、in、like`等查询
 
     + `index_merge`
 
-    + `index`
+      
 
-    + `ALL`
+    + `index`（重要）
+
+    + `ALL`（重要）
 
   + 除了`ALL`都可以用到索引
 
   + 除了`index_merge`，其他都只用到1个索引
 
   + 最起码达到`range`级别
+
+  + 
 
