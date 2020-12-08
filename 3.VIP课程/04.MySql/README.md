@@ -1252,11 +1252,13 @@ set session transaction isolation level serializable;
 
   + 如果A中有的记录，B中一定有对应记录，则B表执行计划的`type`为`eq_ref`或`ref`
 
-  + 如果A中有的记录，B中未必有对应记录，则会直接造成B表的全表扫描，此时，只需要在`on`中添加1个B表中索引列的筛选条件（可以起不到任何过滤作用），即可变回`eq_ref`或`ref`
+  + 如果A中有的记录，B中未必有对应记录，则会直接造成B表的全表扫描，此时，只需要在`on`中添加1个B表中非空索引列的筛选条件（可以起不到任何过滤作用），即可变回`eq_ref`或`ref`
 
   ```sql
   select * from A as s left join B as b on b.id = a.id and b.id > 0
   ```
+
++ 尽量使用小表驱动大表，左边的表一定需要全表扫描，尽量使用小表
 
 ### count
 
@@ -1289,6 +1291,10 @@ Like百分写最右，覆盖索引不写星；
 ## 性能优化思路
 
 + 慢查询日志查看执行时间较长sql语句
++ 通过执行计划优化sql
++ 使用`show profile[s]`查看有问题的sql的资源使用情况
++ 调整操作系统参数优化
++ 升级服务器硬件
 
 ## 慢查询日志
 
@@ -1321,351 +1327,533 @@ Like百分写最右，覆盖索引不写星；
 
 ### 列说明
 
-+ `id`
+#### `id`
 
-  + 每个查询单位自动分配1个id
-  + 1个查询语句解析之后会被分解成多个查询单位，有些查询单位可以一起执行，有些查询单位需要依赖于其他查询单位的执行结果，所以这些查询单位是分批次执行的
-  + 越先执行的批次id越大，同一批次执行的id相同
-  + `union`查询时会有`id`为`null`的行，表示对结果进行组合，因为他不参与查询，所以`id`为`null`
-  + id越大，优先级越高，id相同时，由上至下执行
++ 每个查询单位自动分配1个id
++ 1个查询语句解析之后会被分解成多个查询单位，有些查询单位可以一起执行，有些查询单位需要依赖于其他查询单位的执行结果，所以这些查询单位是分批次执行的
++ 越先执行的批次id越大，同一批次执行的id相同
++ `union`查询时会有`id`为`null`的行，表示对结果进行组合，因为他不参与查询，所以`id`为`null`
++ id越大，优先级越高，id相同时，由上至下执行
 
-+ `select_type`(重要)
+#### `select_type`(重要)
 
-  + 查询类型
++ 查询类型
 
-  + 可选值
++ 可选值
 
-    + `simple`
+  + `simple`
 
-      + 简单查询
+    + 简单查询
 
-      + 表示不需要`union`操作或者不包含子查询的简单`select`查询
+    + 表示不需要`union`操作或者不包含子查询的简单`select`查询
 
-      + 示例
+    + 示例
 
-        ```sh
-        mysql> explain select * from test;
-        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
-        | id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows | filtered | Extra |
-        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
-        |  1 | SIMPLE      | test  | NULL       | ALL  | NULL          | NULL | NULL    | NULL |    4 |   100.00 | NULL  |
-        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
-        1 row in set (0.04 sec)
+      ```sh
+      mysql> explain select * from test;
+      +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
+      | id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows | filtered | Extra |
+      +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
+      |  1 | SIMPLE      | test  | NULL       | ALL  | NULL          | NULL | NULL    | NULL |    4 |   100.00 | NULL  |
+      +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+-------+
+      1 row in set (0.04 sec)
+      ```
+
+  + `primary`
+
+    + 一个需要`union`操作或者含有子查询的`select`，位于最外层的单位查询的`select_type`即为`primary`
+
+    + 示例
+
+      ```sh
+      mysql> explain select text from test where id = (select id from test where id = 1);
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
+      |  2 | SUBQUERY    | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | Using index |
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      2 rows in set (0.06 sec)
+      ```
+
+  + `subquery`
+
+    + 表示不需要`union`操作或者不包含子查询的简单子查询，相当于子查询中的`simple`类型
+
+    + 示例
+
+      ```sh
+      mysql> explain select text from test where id = (select id from test where id = 1);
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
+      |  2 | SUBQUERY    | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | Using index |
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      2 rows in set (0.06 sec)
+      ```
+
+  + `union`
+
+    + `union`连接的多个查询，除了第一个都是`union`
+
+    + 示例
+
+      ```sh
+      mysql> explain select id from  (select id from test1 union select id from test) c;
+      +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+      | id   | select_type  | table      | partitions | type  | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
+      +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+      |    1 | PRIMARY      | <derived2> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL |    8 |   100.00 | NULL            |
+      |    2 | DERIVED      | test1      | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
+      |    3 | UNION        | test       | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
+      | NULL | UNION RESULT | <union2,3> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
+      +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+      4 rows in set (0.07 sec)
+      ```
+
+  + `union result`
+
+    + 将`union`结果进行组合时，`select_type`就是`union result`，此时`id`一定为`null`
+
+    + 示例
+
+      ```sh
+      mysql> explain select id from  (select id from test1 union select id from test) c;
+      +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+      | id   | select_type  | table      | partitions | type  | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
+      +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+      |    1 | PRIMARY      | <derived2> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL |    8 |   100.00 | NULL            |
+      |    2 | DERIVED      | test1      | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
+      |    3 | UNION        | test       | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
+      | NULL | UNION RESULT | <union2,3> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
+      +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
+      4 rows in set (0.07 sec)
+      ```
+
+  + `dependent union`
+
+    + 与`union`类似，此时需要依赖于外部查询
+
+    + 示例
+
+      ```sh
+      mysql> explain select text from test where id in (select id from test1 union select id from test);
+      +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
+      | id   | select_type        | table      | partitions | type   | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
+      +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
+      |    1 | PRIMARY            | test       | NULL       | ALL    | NULL          | NULL    | NULL    | NULL |    4 |   100.00 | Using where     |
+      |    2 | DEPENDENT SUBQUERY | test1      | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | func |    1 |   100.00 | Using index     |
+      |    3 | DEPENDENT UNION    | test       | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | func |    1 |   100.00 | Using index     |
+      | NULL | UNION RESULT       | <union2,3> | NULL       | ALL    | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
+      +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
+      4 rows in set (0.07 sec)
+      ```
+
+      这条语句看起来没有依赖外部查询，其实被优化成下面这样了
+
+      ```sql
+      select text from test as t1 where exists (select id from test1 as t11 where t11.id = t1.id union select id from test as t2 where t2.id = t1.id);
+      ```
+
+  + `dependent subquery`
+
+    + 与`subquery`类似，此时需要依赖于外部查询
+
+    + 示例
+
+      ```sh
+      mysql> explain select text from test as t1 where exists (select id from test1 as t11 where t11.id = t1.id union select id from test as t2 where t2.id = t1.id);
+      +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
+      | id   | select_type        | table      | partitions | type   | possible_keys | key     | key_len | ref        | rows | filtered | Extra           |
+      +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
+      |    1 | PRIMARY            | t1         | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       |    4 |   100.00 | Using where     |
+      |    2 | DEPENDENT SUBQUERY | t11        | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.id |    1 |   100.00 | Using index     |
+      |    3 | DEPENDENT UNION    | t2         | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.id |    1 |   100.00 | Using index     |
+      | NULL | UNION RESULT       | <union2,3> | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       | NULL | NULL     | Using temporary |
+      +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
+      4 rows in set (0.08 sec)
+      ```
+
+  + `derived`
+
+    查询过程中产生的中间表，5.7中已经取消了
+
+#### `table`
+
+查询单位对应的表
+
+#### `partitions`
+
+分区表需要使用的列，不建议使用分区表，这列可忽略
+
+#### `type`（重要）
+
++ 每个查询单位的访问类型
+
++ 可选值（访问性能由高到低排序）
+
+  + `system`
+
+    派生表中的`const`类型显示为`system`，5.7中已移除，可忽略
+
+  + `const`（重要）
+
+    + 在唯一索引或主键上进行等值查询时，`type`为`const`
+
+    + 通过索引值可以直接定位唯一一条对应记录
+
+    + 示例
+
+      ```sh
+      mysql> explain select * from test where id = (select id from test where text = '33');
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
+      |  2 | SUBQUERY    | test  | NULL       | ALL   | NULL          | NULL    | NULL    | NULL  |    4 |    25.00 | Using where |
+      +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
+      2 rows in set (0.13 sec)
+      ```
+
+  + `eq_ref`（重要）
+
+    + 多表关联时，如果后执行的查询单位的关联条件是主键或非空唯一索引，则后执行的查询单位的`type`为`eq_ref`
+
+    + 连接方式与执行顺序
+
+      + `inner join`会自动先执行小表
+      + `left join`一定先执行左表
+      + `right join`一定先执行右表
+
+    + 当后执行的查询单位索引中不能包含所有先执行查询单位返回的关联值时，后执行的查询单位`type`会变为`ALL`，只需要在`on`中添加1个后执行的查询单位对应表中非空索引列的筛选条件（可以起不到任何筛选作用），如`id>0`，即可变回`eq_ref`
+
+    + 通过索引值可以直接定位唯一一条对应记录
+
+    + 示例
+
+      + 表`test`和`test1`具有相同的表结构：
+
+        ```SQL
+        CREATE TABLE `test`  (
+          `id` int(11) NOT NULL,
+          `text` varchar(255) NULL DEFAULT NULL,
+          `ref` int(11) NULL DEFAULT NULL,
+          PRIMARY KEY (`id`) USING BTREE
+        ) ENGINE = InnoDB
         ```
 
-    + `primary`
+      + `test`数据
 
-      + 一个需要`union`操作或者含有子查询的`select`，位于最外层的单位查询的`select_type`即为`primary`
-
-      + 示例
-
-        ```sh
-        mysql> explain select text from test where id = (select id from test where id = 1);
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
-        |  2 | SUBQUERY    | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | Using index |
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        2 rows in set (0.06 sec)
+        ```
+        id  text  ref
+        1	 tt    1
+        2	 ll	   2
+        3    gg    3
         ```
 
-    + `subquery`
+      + `test1`数据
 
-      + 表示不需要`union`操作或者不包含子查询的简单子查询，相当于子查询中的`simple`类型
-
-      + 示例
-
-        ```sh
-        mysql> explain select text from test where id = (select id from test where id = 1);
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
-        |  2 | SUBQUERY    | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | Using index |
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        2 rows in set (0.06 sec)
+        ```
+        id  text  ref
+        1	 tt    1
+        2	 ll	   2
         ```
 
-    + `union`
-
-      + `union`连接的多个查询，除了第一个都是`union`
-
-      + 示例
+      + 几个示例如下
 
         ```sh
-        mysql> explain select id from  (select id from test1 union select id from test) c;
-        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
-        | id   | select_type  | table      | partitions | type  | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
-        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
-        |    1 | PRIMARY      | <derived2> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL |    8 |   100.00 | NULL            |
-        |    2 | DERIVED      | test1      | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
-        |    3 | UNION        | test       | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
-        | NULL | UNION RESULT | <union2,3> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
-        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
-        4 rows in set (0.07 sec)
-        ```
-
-    + `union result`
-
-      + 将`union`结果进行组合时，`select_type`就是`union result`，此时`id`一定为`null`
-
-      + 示例
-
-        ```sh
-        mysql> explain select id from  (select id from test1 union select id from test) c;
-        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
-        | id   | select_type  | table      | partitions | type  | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
-        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
-        |    1 | PRIMARY      | <derived2> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL |    8 |   100.00 | NULL            |
-        |    2 | DERIVED      | test1      | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
-        |    3 | UNION        | test       | NULL       | index | NULL          | PRIMARY | 4       | NULL |    4 |   100.00 | Using index     |
-        | NULL | UNION RESULT | <union2,3> | NULL       | ALL   | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
-        +------+--------------+------------+------------+-------+---------------+---------+---------+------+------+----------+-----------------+
-        4 rows in set (0.07 sec)
-        ```
-
-    + `dependent union`
-
-      + 与`union`类似，此时需要依赖于外部查询
-
-      + 示例
-
-        ```sh
-        mysql> explain select text from test where id in (select id from test1 union select id from test);
-        +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
-        | id   | select_type        | table      | partitions | type   | possible_keys | key     | key_len | ref  | rows | filtered | Extra           |
-        +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
-        |    1 | PRIMARY            | test       | NULL       | ALL    | NULL          | NULL    | NULL    | NULL |    4 |   100.00 | Using where     |
-        |    2 | DEPENDENT SUBQUERY | test1      | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | func |    1 |   100.00 | Using index     |
-        |    3 | DEPENDENT UNION    | test       | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | func |    1 |   100.00 | Using index     |
-        | NULL | UNION RESULT       | <union2,3> | NULL       | ALL    | NULL          | NULL    | NULL    | NULL | NULL | NULL     | Using temporary |
-        +------+--------------------+------------+------------+--------+---------------+---------+---------+------+------+----------+-----------------+
-        4 rows in set (0.07 sec)
-        ```
-
-        这条语句看起来没有依赖外部查询，其实被优化成下面这样了
-
-        ```sql
-        select text from test as t1 where exists (select id from test1 as t11 where t11.id = t1.id union select id from test as t2 where t2.id = t1.id);
-        ```
-
-    + `dependent subquery`
-
-      + 与`subquery`类似，此时需要依赖于外部查询
-
-      + 示例
-
-        ```sh
-        mysql> explain select text from test as t1 where exists (select id from test1 as t11 where t11.id = t1.id union select id from test as t2 where t2.id = t1.id);
-        +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
-        | id   | select_type        | table      | partitions | type   | possible_keys | key     | key_len | ref        | rows | filtered | Extra           |
-        +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
-        |    1 | PRIMARY            | t1         | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       |    4 |   100.00 | Using where     |
-        |    2 | DEPENDENT SUBQUERY | t11        | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.id |    1 |   100.00 | Using index     |
-        |    3 | DEPENDENT UNION    | t2         | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.id |    1 |   100.00 | Using index     |
-        | NULL | UNION RESULT       | <union2,3> | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       | NULL | NULL     | Using temporary |
-        +------+--------------------+------------+------------+--------+---------------+---------+---------+------------+------+----------+-----------------+
-        4 rows in set (0.08 sec)
-        ```
-
-    + `derived`
-
-      查询过程中产生的中间表，5.7中已经取消了
-
-+ `table`
-
-  查询单位对应的表
-
-+ `partitions`
-
-  分区表需要使用的列，不建议使用分区表，这列可忽略
-
-+ `type`（重要）
-
-  + 每个查询单位的访问类型
-
-  + 可选值（访问性能由高到低排序）
-
-    + `system`
-
-      派生表中的`const`类型显示为`system`，5.7中已移除，可忽略
-
-    + `const`（重要）
-
-      + 在唯一索引或主键上进行等值查询时，`type`为`const`
-
-      + 通过索引值可以直接定位唯一一条对应记录
-
-      + 示例
-
-        ```sh
-        mysql> explain select * from test where id = (select id from test where text = '33');
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        | id | select_type | table | partitions | type  | possible_keys | key     | key_len | ref   | rows | filtered | Extra       |
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        |  1 | PRIMARY     | test  | NULL       | const | PRIMARY       | PRIMARY | 4       | const |    1 |   100.00 | NULL        |
-        |  2 | SUBQUERY    | test  | NULL       | ALL   | NULL          | NULL    | NULL    | NULL  |    4 |    25.00 | Using where |
-        +----+-------------+-------+------------+-------+---------------+---------+---------+-------+------+----------+-------------+
-        2 rows in set (0.13 sec)
-        ```
-
-    + `eq_ref`（重要）
-
-      + 多表关联时，如果后执行的查询单位的关联条件是主键或非空唯一索引，则后执行的查询单位的`type`为`eq_ref`
-
-      + 连接方式与执行顺序
-
-        + `inner join`会自动先执行小表
-        + `left join`一定先执行左表
-        + `right join`一定先执行右表
-
-      + 当后执行的查询单位索引中不能包含所有先执行查询单位返回的关联值时，后执行的查询单位`type`会变为`ALL`，只需要在`on`中添加1个后执行的查询单位对应表中索引列的筛选条件（可以起不到任何筛选作用），如`id>0`，即可变回`eq_ref`
-
-      + 通过索引值可以直接定位唯一一条对应记录
-
-      + 示例
-
-        + 表`test`和`test1`具有相同的表结构：
-
-          ```SQL
-          CREATE TABLE `test`  (
-            `id` int(11) NOT NULL,
-            `text` varchar(255) NULL DEFAULT NULL,
-            `ref` int(11) NULL DEFAULT NULL,
-            PRIMARY KEY (`id`) USING BTREE
-          ) ENGINE = InnoDB
-          ```
-
-        + `test`数据
-
-          ```
-          id  text  ref
-          1	 tt    1
-          2	 ll	   2
-          3    gg    3
-          ```
-
-        + `test1`数据
-
-          ```
-          id  text  ref
-          1	 tt    1
-          2	 ll	   2
-          ```
-
-        + 几个示例如下
-
-          ```sh
-          mysql> explain select * from test1 as t1 left join test as t on t1.ref=t.id;
-          +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
-          | id | select_type | table | partitions | type   | possible_keys | key     | key_len | ref         | rows | filtered | Extra |
-          +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
-          |  1 | SIMPLE      | t1    | NULL       | ALL    | NULL          | NULL    | NULL    | NULL        |    2 |   100.00 | NULL  |
-          |  1 | SIMPLE      | t     | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.ref |    1 |   100.00 | NULL  |
-          +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
-          2 rows in set (0.05 sec)
-          
-          mysql> explain select * from test as t left join test1 as t1 on t.ref=t1.id;
-          +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
-          | id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows | filtered | Extra                                              |
-          +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
-          |  1 | SIMPLE      | t     | NULL       | ALL  | NULL          | NULL | NULL    | NULL |    4 |   100.00 | NULL                                               |
-          |  1 | SIMPLE      | t1    | NULL       | ALL  | PRIMARY       | NULL | NULL    | NULL |    2 |   100.00 | Using where; Using join buffer (Block Nested Loop) |
-          +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
-          2 rows in set (0.05 sec)
-          
-          # test1的索引1,2中不包含所有test表返回的关联值1,2,3，所以变成全表扫描了
-          # 此时只需在 on 中添加1个test1表中索引列的筛选条件即可恢复为 eq_ref，其实这个条件起不到任何过滤作用
-          
-          mysql> explain select * from test as t left join test1 as t1 on t.ref=t1.id and t1.id > 0;
-          +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
-          | id | select_type | table | partitions | type   | possible_keys | key     | key_len | ref        | rows | filtered | Extra       |
-          +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
-          |  1 | SIMPLE      | t     | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       |    6 |   100.00 | NULL        |
-          |  1 | SIMPLE      | t1    | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t.ref |    1 |   100.00 | Using where |
-          +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
-          2 rows in set (0.08 sec)
-          ```
-
-    + `ref`（重要）
-
-      + 如下两种情况会出现
-
-        + 多表关联
-
-          如果后执行的查询单位的关联条件是`非唯一性索引`，则后执行的查询单位的`type`为`ref`
-
-        + 等值查询
-
-          使用`非唯一性索引`进行等值查询时，`type`为`ref`
-
-      + 这里的`非唯一性索引`包含如下情况：
-
-        + `NORMAL`索引
-        + 组合唯一索引
-        + 允许为空的唯一索引（仅针对多表关联）
-
-      + 当后执行的查询单位索引中不能包含所有先执行查询单位返回的关联值时，后执行的查询单位`type`会变为`ALL`，只需要在`on`中添加1个后执行的查询单位对应表中索引列的筛选条件（可以起不到任何筛选作用），如`id>0`，即可变回`ref`
-
-      + 通过索引值可以定位多条对应记录
-
-      + 示例
-
-        ```sh
-        # test表text字段有普通索引
-        mysql> explain select * from test1 as t1 left join test as t on t.text = t1.text;
-        +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
-        | id | select_type | table | partitions | type | possible_keys | key        | key_len | ref          | rows | filtered | Extra |
-        +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
-        |  1 | SIMPLE      | t1    | NULL       | ALL  | NULL          | NULL       | NULL    | NULL         |    2 |   100.00 | NULL  |
-        |  1 | SIMPLE      | t     | NULL       | ref  | index_text    | index_text | 258     | test.t1.text |    1 |   100.00 | NULL  |
-        +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
-        2 rows in set (0.06 sec)
+        mysql> explain select * from test1 as t1 left join test as t on t1.ref=t.id;
+        +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
+        | id | select_type | table | partitions | type   | possible_keys | key     | key_len | ref         | rows | filtered | Extra |
+        +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
+        |  1 | SIMPLE      | t1    | NULL       | ALL    | NULL          | NULL    | NULL    | NULL        |    2 |   100.00 | NULL  |
+        |  1 | SIMPLE      | t     | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t1.ref |    1 |   100.00 | NULL  |
+        +----+-------------+-------+------------+--------+---------------+---------+---------+-------------+------+----------+-------+
+        2 rows in set (0.05 sec)
         
-        # test1表text和ref字段具有联合唯一索引
-        mysql> explain select * from test1 where text = '33';
-        +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
-        | id | select_type | table | partitions | type | possible_keys | key        | key_len | ref   | rows | filtered | Extra |
-        +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
-        |  1 | SIMPLE      | test1 | NULL       | ref  | index_text    | index_text | 257     | const |    1 |   100.00 | NULL  |
-        +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
-        1 row in set (0.06 sec)
+        mysql> explain select * from test as t left join test1 as t1 on t.ref=t1.id;
+        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
+        | id | select_type | table | partitions | type | possible_keys | key  | key_len | ref  | rows | filtered | Extra                                              |
+        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
+        |  1 | SIMPLE      | t     | NULL       | ALL  | NULL          | NULL | NULL    | NULL |    4 |   100.00 | NULL                                               |
+        |  1 | SIMPLE      | t1    | NULL       | ALL  | PRIMARY       | NULL | NULL    | NULL |    2 |   100.00 | Using where; Using join buffer (Block Nested Loop) |
+        +----+-------------+-------+------------+------+---------------+------+---------+------+------+----------+----------------------------------------------------+
+        2 rows in set (0.05 sec)
+        
+        # test1的索引1,2中不包含所有test表返回的关联值1,2,3，所以变成全表扫描了
+        # 此时只需在 on 中添加1个test1表中非空索引列的筛选条件即可恢复为 eq_ref，其实这个条件起不到任何过滤作用
+        
+        mysql> explain select * from test as t left join test1 as t1 on t.ref=t1.id and t1.id > 0;
+        +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
+        | id | select_type | table | partitions | type   | possible_keys | key     | key_len | ref        | rows | filtered | Extra       |
+        +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
+        |  1 | SIMPLE      | t     | NULL       | ALL    | NULL          | NULL    | NULL    | NULL       |    6 |   100.00 | NULL        |
+        |  1 | SIMPLE      | t1    | NULL       | eq_ref | PRIMARY       | PRIMARY | 4       | test.t.ref |    1 |   100.00 | Using where |
+        +----+-------------+-------+------------+--------+---------------+---------+---------+------------+------+----------+-------------+
+        2 rows in set (0.08 sec)
         ```
 
-    + `fulltext`
+  + `ref`（重要）
 
-      全文索引的优先级很高，若全文索引和普通索引同时存在时，mysql不管代价，优先选择使用全文索引
+    + 如下两种情况会出现
 
-    + `ref_or_null`
+      + 多表关联
 
-      在`ref`基础上增加了`null`值比较
+        如果后执行的查询单位的关联条件是`非唯一性索引`，则后执行的查询单位的`type`为`ref`
 
-    + `unique_subquery`
+      + 等值查询
 
-      用于where中的in形式子查询，子查询返回不重复值唯一值
+        使用`非唯一性索引`进行等值查询时，`type`为`ref`
 
-    + `index_subquery`
+    + 这里的`非唯一性索引`包含如下情况：
 
-      用于in形式子查询使用到了辅助索引或者in常数列表，子查询可能返回重复值，可以使用索引将子查询去重
+      + `NORMAL`索引
+      + 组合唯一索引
+      + 允许为空的唯一索引（仅针对多表关联）
 
-    + `range`（重要）
+    + 当后执行的查询单位索引中不能包含所有先执行查询单位返回的关联值时，后执行的查询单位`type`会变为`ALL`，只需要在`on`中添加1个后执行的查询单位对应表中非空索引列的筛选条件（可以起不到任何筛选作用），如`id>0`，即可变回`ref`
 
-      范围扫描，常见于`>、<、between、in、like`等查询
+    + 通过索引值可以定位多条对应记录
 
-    + `index_merge`
+    + 示例
 
+      ```sh
+      # test表text字段有普通索引
+      mysql> explain select * from test1 as t1 left join test as t on t.text = t1.text;
+      +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
+      | id | select_type | table | partitions | type | possible_keys | key        | key_len | ref          | rows | filtered | Extra |
+      +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
+      |  1 | SIMPLE      | t1    | NULL       | ALL  | NULL          | NULL       | NULL    | NULL         |    2 |   100.00 | NULL  |
+      |  1 | SIMPLE      | t     | NULL       | ref  | index_text    | index_text | 258     | test.t1.text |    1 |   100.00 | NULL  |
+      +----+-------------+-------+------------+------+---------------+------------+---------+--------------+------+----------+-------+
+      2 rows in set (0.06 sec)
       
+      # test1表text和ref字段具有联合唯一索引
+      mysql> explain select * from test1 where text = '33';
+      +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
+      | id | select_type | table | partitions | type | possible_keys | key        | key_len | ref   | rows | filtered | Extra |
+      +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
+      |  1 | SIMPLE      | test1 | NULL       | ref  | index_text    | index_text | 257     | const |    1 |   100.00 | NULL  |
+      +----+-------------+-------+------------+------+---------------+------------+---------+-------+------+----------+-------+
+      1 row in set (0.06 sec)
+      ```
 
-    + `index`（重要）
+  + `fulltext`
 
-    + `ALL`（重要）
+    全文索引的优先级很高，若全文索引和普通索引同时存在时，mysql不管代价，优先选择使用全文索引
 
-  + 除了`ALL`都可以用到索引
+  + `ref_or_null`
 
-  + 除了`index_merge`，其他都只用到1个索引
+    在`ref`基础上增加了`null`值比较
 
-  + 最起码达到`range`级别
+  + `unique_subquery`
 
-  + 
+    用于where中的in形式子查询，子查询返回不重复值唯一值
+
+  + `index_subquery`
+
+    用于in形式子查询使用到了辅助索引或者in常数列表，子查询可能返回重复值，可以使用索引将子查询去重
+
+  + `range`（重要）
+
+    范围扫描，常见于`>、<、between、in、like`等查询
+
+  + `index_merge`
+
+    + 表示查询使用了两个以上的索引，最后取交集或者并集，常见`and`，`or`的条件使用了不同的索引，官方排序这个在`ref_or_null`之后，但是实际上由于要读取所个索引，性能可能大部分时间都不如`range`
+    + 出现该值时表示sql还有优化空间
+
+  + `index`（重要）
+
+    + 通过覆盖索引返回查询结果
+
+  + `ALL`（重要）
+
+    + 全盘扫描，所有过滤在`server`层完成
+
++ 除了`ALL`都可以用到索引
+
++ 除了`index_merge`，其他都只用到1个索引
+
++ 最起码达到`range`级别
+
+#### `possible_keys`
+
++ 可能用到的索引
+
+#### `key`
+
++ 实际用到的索引
+
+#### `key_len`
+
++ 实际使用的索引长度
++ 创建索引时，索引长度越小越好
++ 通过该值可以判断出是否使用了组合索引的所有字段
++ `key_len`不计算排序和分组中使用索引的索引长度
+
+#### `ref`
+
+索引关联位置：
+
++ 如果是使用的常数等值查询，这里会显示`const`
++ 如果是连接查询，被驱动表的执行计划这里会显示驱动表的关联字段
++ 如果是条件使用了表达式或者函数，或者条件列发生了内部隐式转换，这里可能显示为`func`
+
+#### `rows`
+
++ 执行计划中估算的扫描行数，也就是引擎层返回给`server`层的行数，不是精确值
+
+#### `filtered`
+
++ 最终返回记录数占`rows`的百分比
+
+#### `extra`（重要）
+
++ 扩展信息
++ 一共有几十种，常见如下：
+  + `Using filesort`：排序无法使用索引
+  + `Using temporary`：使用了临时表，mysql对查询结果排序时会使用临时表，常见于分组或排序，需要排查是否走索引
+  + `Using index`：使用了覆盖索引
+  + `Using where`：`server`层需要对数据进行过滤
+  + `Using join buffer`：
+    + 表明使用了连接缓存
+    + 比如说在查询的时候，多表join的次数非常多，
+    + 需要将配置文件中的缓冲区的`join buffer`调大一些。
+
+## show profile[s]
+
+### 介绍
+
++ 全名`Query Profiler`，mysql自带的诊断分析工具，能做到精确分析
++ 该功能是会话级别的
++ 可以展示当前会话执行sql的资源使用情况
+
+### 开启
+
++ 查看
+
+  ```sql
+  select @@profiling;
+  -- 或者
+  show variables like '%prof
+  ```
+
++ 开启
+
+  ```sql
+  set profiling=1; --1是开启、0是关
+  ```
+
+### 使用
+
++ `show profiles`
+
+  + 展示最近执行sql列表
+  + 默认15条，由`profiling_history_size`参数控制
+
+  ```sql
+  mysql> show profiles;
+  +----------+------------+-----------------------------------------------------------------------------+
+  | Query_ID | Duration   | Query                                                                       |
+  +----------+------------+-----------------------------------------------------------------------------+
+  |        1 | 0.00040300 | select @@profiling                                                          |
+  |        2 | 0.00123550 | select * from test as t left join test1 as t1 on t.ref=t1.id and t1.ref > 0 |
+  +----------+------------+-----------------------------------------------------------------------------+
+  2 rows in set (0.08 sec)
+  ```
+
++ `show profile`
+
+  + 默认
+
+    展示最后一条语句资源使用详情，默认`status`和`duration`两列
+
+    ```sql
+    mysql> show profile;
+    +----------------------+----------+
+    | Status               | Duration |
+    +----------------------+----------+
+    | starting             | 0.000136 |
+    | checking permissions | 0.000007 |
+    | checking permissions | 0.000006 |
+    | Opening tables       | 0.000294 |
+    | init                 | 0.000032 |
+    | System lock          | 0.000009 |
+    | optimizing           | 0.000012 |
+    | statistics           | 0.000165 |
+    | preparing            | 0.000058 |
+    | executing            | 0.000005 |
+    | Sending data         | 0.000250 |
+    | end                  | 0.000044 |
+    | query end            | 0.000046 |
+    | closing tables       | 0.000047 |
+    | freeing items        | 0.000078 |
+    | cleaning up          | 0.000051 |
+    +----------------------+----------+
+    16 rows in set (0.11 sec)
+    ```
+
+  + 参数控制
+
+    + 格式
+
+      ```
+      SHOW PROFILE [type ...]
+      [FOR QUERY n]
+      [LIMIT row_count [OFFSET offset]]
+      ```
+
+    + 参数说明
+
+      + [type]
+        + `ALL`：显示所有性能信息
+        + `BLOCK IO` ：显示块IO操作的次数
+        + `CONTEXT SWITCHES`: 显示上下文切换次数，不管是主动还是被动
+        + `CPU` ：显示用户CPU时间、系统CPU时间
+        + `IPC`： 显示发送和接收的消息数量
+        + `MEMORY`：[暂未实现]
+        + `PAGE FAULTS` ：显示页错误数量
+        + `SOURCE`： 显示源码中的函数名称与位置
+        + `SWAPS` ：显示SWAP的次数
+
+    + 例
+
+      ```sql
+      mysql> show profile all for query 2 limit 20;
+      +----------------------+----------+----------+------------+-------------------+---------------------+--------------+---------------+---------------+-------------------+-------------------+-------------------+-------+-----------------------+----------------------+-------------+
+      | Status               | Duration | CPU_user | CPU_system | Context_voluntary | Context_involuntary | Block_ops_in | Block_ops_out | Messages_sent | Messages_received | Page_faults_major | Page_faults_minor | Swaps | Source_function       | Source_file          | Source_line |
+      +----------------------+----------+----------+------------+-------------------+---------------------+--------------+---------------+---------------+-------------------+-------------------+-------------------+-------+-----------------------+----------------------+-------------+
+      | starting             | 0.000136 | 0.000000 | 0.000135   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | NULL                  | NULL                 | NULL        |
+      | checking permissions | 0.000007 | 0.000000 | 0.000007   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | check_access          | sql_authorization.cc |         809 |
+      | checking permissions | 0.000006 | 0.000000 | 0.000005   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | check_access          | sql_authorization.cc |         809 |
+      | Opening tables       | 0.000294 | 0.000000 | 0.000295   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | open_tables           | sql_base.cc          |        5815 |
+      | init                 | 0.000032 | 0.000000 | 0.000031   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | handle_query          | sql_select.cc        |         128 |
+      | System lock          | 0.000009 | 0.000000 | 0.000009   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | mysql_lock_tables     | lock.cc              |         330 |
+      | optimizing           | 0.000012 | 0.000000 | 0.000012   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | optimize              | sql_optimizer.cc     |         158 |
+      | statistics           | 0.000165 | 0.000000 | 0.000165   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | optimize              | sql_optimizer.cc     |         374 |
+      | preparing            | 0.000058 | 0.000000 | 0.000058   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | optimize              | sql_optimizer.cc     |         482 |
+      | executing            | 0.000005 | 0.000000 | 0.000004   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | exec                  | sql_executor.cc      |         126 |
+      | Sending data         | 0.000250 | 0.000000 | 0.000251   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | exec                  | sql_executor.cc      |         202 |
+      | end                  | 0.000044 | 0.000000 | 0.000043   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | handle_query          | sql_select.cc        |         206 |
+      | query end            | 0.000046 | 0.000000 | 0.000046   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | mysql_execute_command | sql_parse.cc         |        4956 |
+      | closing tables       | 0.000047 | 0.000000 | 0.000046   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | mysql_execute_command | sql_parse.cc         |        5009 |
+      | freeing items        | 0.000078 | 0.000000 | 0.000077   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | mysql_parse           | sql_parse.cc         |        5622 |
+      | cleaning up          | 0.000051 | 0.000000 | 0.000051   |                 0 |                   0 |            0 |             0 |             0 |                 0 |                 0 |                 0 |     0 | dispatch_command      | sql_parse.cc         |        1931 |
+      +----------------------+----------+----------+------------+-------------------+---------------------+--------------+---------------+---------------+-------------------+-------------------+-------------------+-------+-----------------------+----------------------+-------------+
+      16 rows in set (0.15 sec)
+      ```
+
+### 经验
+
++ `Creating tmp table`
+
+  创建临时表：拷贝数据到临时表，用完再删除；
+
++ `Copying to tmp table on disk` 
+
+  把内存临时表复制到磁盘，危险
+
+## 服务器层面优化
 
