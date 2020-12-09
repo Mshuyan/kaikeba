@@ -1857,3 +1857,63 @@ Like百分写最右，覆盖索引不写星；
 
 ## 服务器层面优化
 
++ 将`innodb_buffer_pool_size`设置为总内存大小`3/4`
+
+  缓存使用情况查询
+
+  ```
+  mysql> show global status like 'innodb_buffer_pool_pages_%';
+  +----------------------------------+-------+
+  | Variable_name                    | Value |
+  +----------------------------------+-------+
+  | Innodb_buffer_pool_pages_data    | 580   |
+  | Innodb_buffer_pool_pages_dirty   | 0     |
+  | Innodb_buffer_pool_pages_flushed | 2354  |
+  | Innodb_buffer_pool_pages_free    | 7610  |
+  | Innodb_buffer_pool_pages_misc    | 2     |
+  | Innodb_buffer_pool_pages_total   | 8192  |
+  +----------------------------------+-------+
+  6 rows in set (0.05 sec)
+  ```
+
+  `Innodb_buffer_pool_pages_free`为`0`表示缓冲池内存用光了
+
++ 没必要开启的日志都关掉
+
++ 写入缓存大小`innodb_log_file_size`设置为缓冲池`1/4` 
+
++ 脏页达到`25%~50%`时进行落盘，默认`75%`
+
+  ```
+  innodb_max_dirty_pages_pct
+  ```
+
++ 调整刷新脏页数量，充分利用磁盘性能
+
+  ```
+  mysql> show global variables like 'innodb_io_capacity';
+  +--------------------+-------+
+  | Variable_name      | Value |
+  +--------------------+-------+
+  | innodb_io_capacity | 200   |
+  +--------------------+-------+
+  1 row in set (0.05 sec)
+  ```
+
+  参考值
+
+  ![image-20201209235520525](assets/image-20201209235520525.png) 
+
++ 设置`binlog`文件格式为`row`（mysql8.0默认）
+
+  ```
+  mysql> show global variables like 'binlog_format';
+  +---------------+-------+
+  | Variable_name | Value |
+  +---------------+-------+
+  | binlog_format | ROW   |
+  +---------------+-------+
+  1 row in set (0.05 sec)
+  ```
+
++ 其他优化参见课件
