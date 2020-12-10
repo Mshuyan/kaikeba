@@ -19,7 +19,7 @@
    -v /usr/local/docker-srv/mysql5.7/conf:/etc/mysql \
    -v /usr/local/docker-srv/mysql5.7/logs:/logs \
    -v /usr/local/docker-srv/mysql5.7/data:/var/lib/mysql \
-   -e MYSQL_ROOT_PASSWORD=943397 \
+   -e MYSQL_ROOT_PASSWORD=123456 \
    mysql:5.7
   ```
 
@@ -1917,3 +1917,257 @@ Like百分写最右，覆盖索引不写星；
   ```
 
 + 其他优化参见课件
+
+# 集群
+
+## 主从复制
+
+### binlog
+
++ 记录数据变更，用于本机数据恢复和主从同步
+
+#### 日志模式
+
++ 3种模式
+
+  + `statement level`
+    + 记录sql语句
+    + 优点：批量更新操作时日志量少，性能高
+    + 缺点：
+      + 需要记录更多上下文信息；
+      + bug较多
+      + `RC`、`RU`级别下不能使用
+  + `row level`（常用 + 默认）
+    + 记录修改后的数据
+    + 优点：不用记录那么多细节，恢复起来更容易
+    + 缺点：批量操作日志量很大
+  + `mixed level`
+    + `mysql`自动选择使用哪种方式存储日志
+
++ 参数：`binlog_format`，可选值：`STATEMENT`、`ROW`、`MIXED`
+
+  可在控制台和配置文件中配置
+
+#### 刷盘策略
+
++ 存储引擎在几次`commit`后调用系统`sync`操作将日志从操作系统缓存刷新到磁盘
+
++ 参数：`sync_binlog`，值为数字
+
+  可在控制台和配置文件中配置
+
++ 默认值`1`，最优方案保持为`1`
+
+#### 同步哪些数据库
+
++ 下面配置只能在配置文件配置，如需多个重复配置即可
+
++ 主数据库使用下面参数决定备份哪些数据库
+
+  这俩参数用一个就行
+  + `binlog_do_db`：需要备份的数据库名
+  + `binlog_ignore_db`：不需要备份的数据库名
+
++ 从数据库使用下面两个参数决定同步哪些数据库
+
+  + `replicate_do_db`：需要同步的数据库
+  + `replicate_ignore_db`：不需要同步的数据库
+
+#### 查看日志内容
+
+可以通过`mysqlbinlog`命令工具查看`binlog`和`relaylog`日志内容
+
+```sh
+$ mysqlbinlog mysql-bin.000001
+```
+
+### 传统方式
+
+#### 原理
+
+![image-20201210204941026](assets/image-20201210204941026.png) 
+
++ 主服务器数据提交成功后，异步将数据写入`binlog`，并通知从服务器
++ 从服务器接到通知后，从主服务器读取并写入`relaylog`
++ 从服务器异步将`relaylog`文件中内存恢复到数据库中
+
+#### 流程
+
+##### 主服务器
+
++ 关闭防火墙
+
++ 修改配置文件并重启服务
+
+  ```sh
+  server-id       = 1
+  log-bin         = mysql-bin
+  binlig-do-db	= test			# 需要同步的数据库
+  ```
+
++ 为从机分配具有备份权限的账号
+
+  ```sh
+  # GRANT REPLICATION SLAVE ON 库.表 TO '从机MySQL用户名'@'从机IP' identified by '从机MySQL密码';
+  mysql> grant replication slave on *.* to 'slave1'@'%' identified by '123456';
+  Query OK, 0 rows affected (4.04 sec)
+  
+  mysql> FLUSH PRIVILEGES;
+  Query OK, 0 rows affected (0.01 sec)
+  ```
+
+##### 从服务器
+
++ 修改配置文件并重启
+
+  ```sh
+  server-id		= 2
+  replicate-do-db = test		# 需要同步的数据库
+  ```
+
++ 手动同步主从数据，保证数据一致
+
++ 在主服务器执行如下命令
+
+  ```
+  mysql> show master status;
+  +------------------+----------+--------------+------------------+-------------------+
+  | File             | Position | Binlog_Do_DB | Binlog_Ignore_DB | Executed_Gtid_Set |
+  +------------------+----------+--------------+------------------+-------------------+
+  | mysql-bin.000001 |      1743 |              |                  |                   |
+  +------------------+----------+--------------+------------------+-------------------+
+  1 row in set (0.07 sec)
+  ```
+
++ 配置从哪个主服务器同步
+
+  ```sql
+  mysql>change master to
+  master_host='172.17.0.2',
+  master_port=3306,
+  master_user='slave1',
+  master_password='123456',
+  -- 从哪个位置开始同步
+  master_log_file='mysql-bin.000001',		-- 上一步查询结果 File 字段值
+  master_log_pos=600,						-- 上一步查询结果 Position 字段值
+  MASTER_AUTO_POSITION=0;
+  ```
+
++ 开始同步
+
+  ```
+  mysql> start slave;
+  ```
+
++ 查看同步状态
+
+  ```
+  mysql> show slave status;
+  ```
+
+  结果中要保证：`Slave_IO_Running`、`Slave_SQL_Running`均为`yes`
+
+### GTID方式
+
+#### 什么是GTID
+
++ 全局唯一事务ID（Global Transaction ID）
++ `UUID`+`TID`组成
+  + `UUID`：`data`目录下`auto.cnf`文件中的值，每个服务器唯一
+  + `TID`：当前实例事务id
++ `MySQL-5.6.5`开始支持的，`MySQL-5.6.10`后开始完善。
+
+#### 作用
+
++ 更简单的实现failover，不用以前那样在需要找log_file和log_pos。
++ 更简单的搭建主从复制。
++ 比传统的复制更加安全。
++ GTID是连续的没有空洞的，保证数据的一致性，零丢失
+
+#### 工作原理
+
++ 主库提交事务时，产生GTID，一同记录到`binlog`中。
++ `binlog`传输到`slave`,并存储到`slave`的`relaylog`，读取这个`GTID`的值设置`gtid_next`变量，即告诉`Slave`，下一个要执行的`GTID`值。
++ sql线程从`relay log`中获取GTID，然后对比slave端的`binlog`是否有该GTID。
+  + 如果有记录，说明该GTID的事务已经执行，slave会忽略。
+  + 如果没有记录，slave就会执行该GTID事务，并记录该GTID到自身的binlog，在读取执行事务前会先检查其他session持有该GTID，确保不被重复执行。
++ 在解析过程中会判断是否有主键，如果没有就用二级索引，如果没有就用全部扫描。
+
+#### 流程
+
+##### 主服务器
+
++ 关闭防火墙
+
++ 修改配置文件并重启服务
+
+  ```sh
+  #GTID:
+  server_id=135                #服务器id
+  gtid_mode=on                 #开启gtid模式
+  enforce_gtid_consistency=on  #强制gtid一致性，开启后对于特定create table不被支持
+  
+  #binlog
+  log_bin=mysql-bin
+  binlog_do_db=test
+  ```
+
++ 为从机分配具有备份权限的账号
+
+  ```sh
+  # GRANT REPLICATION SLAVE ON 库.表 TO '从机MySQL用户名'@'从机IP' identified by '从机MySQL密码';
+  mysql> grant replication slave on *.* to 'slave1'@'%' identified by '123456';
+  Query OK, 0 rows affected (4.04 sec)
+  
+  mysql> FLUSH PRIVILEGES;
+  Query OK, 0 rows affected (0.01 sec)
+  ```
+
+##### 从服务器
+
++ 修改配置文件并重启
+
+  ```sh
+  #GTID:
+  server_id=143
+  gtid_mode=on
+  enforce_gtid_consistency=on
+  
+  # 既主又从时需要进行如下配置
+  log-bin=mysql-bin			# 开启binlog
+  log-slave-updates=1 		# 从主库同步过来的数据也记录到自己的binlog日志中
+  ```
+
++ 手动同步主从数据，保证数据一致
+
++ 配置从哪个主服务器同步
+
+  ```sql
+  mysql>change master to
+  master_host='172.17.0.2',
+  master_port=3306,
+  master_user='slave1',
+  master_password='123456',
+  MASTER_AUTO_POSITION=1;
+  ```
+
++ 开始同步
+
+  ```
+  mysql> start slave;
+  ```
+
++ 查看同步状态
+
+  ```
+  mysql> show slave status;
+  ```
+
+  结果中要保证：`Slave_IO_Running`、`Slave_SQL_Running`均为`yes`
+
+## 读写分离
+
+
+
+# 分库分表
+
