@@ -932,7 +932,8 @@ public class CallableDemo {
 
 ## 创建
 
-+ `Executors`中提供了多种创建线程池的方法
++ `Executors`中提供了多种创建线程池的方法，常用的如下：
+  + 
 
 
 
