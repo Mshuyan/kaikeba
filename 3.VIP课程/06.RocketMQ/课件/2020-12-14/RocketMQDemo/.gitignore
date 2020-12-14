@@ -1,0 +1,74 @@
+HELP.md
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**
+!**/src/test/**
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+/out/
+.idea/
+.idea_modules/
+classes/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+
+### VS Code ###
+.vscode/
+
+.DS_Store
+.DS_Store?
+
+hs_err_pid*
+
+# Eclipse
+.metadata/
+eclimd.log
+.classpath
+.project
+.settings/
+
+# Code Coverage Tool
+jacoco.exec
+
+# Java template
+*.class
+
+# Package Files
+*.jar
+*.war
+*.ear
+
+target/
+logs/
+
+# Hive
+metastore_db/
+
+# Derby
+derby.log
+
+!mysql-connector-java*
+
+
+# Scala Compilation Cache Files
+.cache-main
+.cache-tests

@@ -870,10 +870,12 @@ public class CallableDemo {
 
   ![image-20201214152821737](assets/image-20201214152821737.png) 
 
-  + 当需要开启1个线程时，先判断线程池中是否有可以执行的线程
+  + 当需要开启1个线程时，先判断线程池中是否有空闲的核心线程
   + 如果有，则直接拿出1个线程执行
   + 如果没有，将该任务放入阻塞队列进行排队，线程中有任务执行结束后，从阻塞队列中取出下一个要执行的任务进行执行
-  + 如果阻塞队列满了时，使用拒绝策略处理此次申请
+  + 如果阻塞队列满了时，还有新的线程要执行，则创建非核心线程来执行阻塞队列中的任务
+  + 如果非核心线程也都忙着呢，阻塞队列也满了，还有新的任务要执行，则使用拒绝策略处理此次申请
+  + 当任务逐渐执行结束，非核心线程都空闲下来了，则非核心线程会被自动回收
 
 + 优点
 
@@ -930,18 +932,153 @@ public class CallableDemo {
 
   + 线程池的创建需要指定很多参数，使用`Excutor`可以通过指定合适的参数创建适用于各种场景的线程池
 
-## 创建
+## JDK线程池
 
 + `Executors`中提供了多种创建线程池的方法，常用的如下：
-  + 
 
+  + `newFixedThreadPool`
 
+    + code
 
+      ```java
+      public static ExecutorService newFixedThreadPool(int nThreads) {
+          return new ThreadPoolExecutor(nThreads, nThreads,
+                                        0L, TimeUnit.MILLISECONDS,
+                                        new LinkedBlockingQueue<Runnable>());
+      }
+      ```
 
+    + 定长线程池
 
+    + 核心线程数与最大线程数相同
 
+    + `LinkedBlockingQueue`默认大小非常大，会造成`OOM`异常
 
+  + `newSingleThreadExecutor`
 
+    + code
+
+      ```java
+      public static ExecutorService newSingleThreadExecutor() {
+          return new FinalizableDelegatedExecutorService
+              (new ThreadPoolExecutor(1, 1,
+                                      0L, TimeUnit.MILLISECONDS,
+                                      new LinkedBlockingQueue<Runnable>()));
+      }
+      ```
+
+    + 只有1个线程的线程池
+
+    + 核心线程数与最大线程数都为1
+
+    + `LinkedBlockingQueue`默认大小非常大，会造成`OOM`异常
+
+  + `newCachedThreadPool`
+
+    + code
+
+      ```java
+      public static ExecutorService newCachedThreadPool() {
+          return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+                                        60L, TimeUnit.SECONDS,
+                                        new SynchronousQueue<Runnable>());
+      }
+      ```
+
+    + 缓存线程池，没有核心线程，需要多少线程开启多少线程
+
+    + 核心线程数为0，最大线程数约等于无限
+
+    + 最大线程没有上限，会造成`OOM`异常
+
+    + 没有核心线程会产生线程的创建和销毁的开销，比不用线程池好不到哪去
+
++ JDK提供好的线程池都是存在问题的，实际开发中线程池需要自定义设置
+
+## 构造参数
+
++ `int corePoolSize`
+  + 核心线程数，程序启动自动创建好，不会被销毁
++ `int maximumPoolSize`
+  + 最大线程数
+  + 核心线程数量不够用时可以创建非核心线程满足需要，但是总线程数需要有上限
++ `long keepAliveTime`
+  + 存活时间
+  + 非核心线程超过存活时间会自动销毁
++ `TimeUnit unit`
+  + 存活时间单位
++ `BlockingQueue<Runnable> workQueue`
+  + 阻塞队列
+  + 线程池不够大时，其他的线程需要放在阻塞队列中等待被执行
++ `ThreadFactory threadFactory`
+  + 线程工厂
+  + 创建线程时如何创建
++ `RejectedExecutionHandler handler`
+  + 拒绝策略
+  + 阻塞队列也满了时如何处理新的线程请求
+
+## 拒绝策略
+
++ `AbortPolicy`
+  + 默认策略
+  + 直接抛出`RejectedExecutionException`异常，阻止系统正常运行
++ `CallerRunsPolicy`
+  + 将任务返回给调用者执行
++ `DiscardOldestPolicy`
+  + 抛弃阻塞队列中等待时间最长的任务，将当前任务再次提交
++ `DiscardPolicy`
+  + 丢弃当前任务
+
+## 线程池优化
+
+> 通过`grep 'processor' /proc/cpuinfo | sort -u | wc -l`命令可以查看`CPU线程数`
+
++ 核心线程数
+
+  + 与`最大线程数`一致即可
+
++ 最大线程数
+
+  + IO密集型任务（常用）
+
+    + IO密集型指的是数据库操作，文件处理这样的任务，大部分时间花在IO上，CPU处于闲置状态等待IO操作完成，这样的任务线程池可以大一些
+    + 常用值为`2*CPU线程数`
+
+  + CPU密集型任务
+
+    + CPU密集型指的是大部分时间CPU处于工作状态
+
+    + 常用值为`CPU线程数+1`
+
++ 存活时间
+
+  + 60S
+
++ 阻塞队列
+
+  + 使用`LinkedBlockingQueue`
+
+  + 线程池大小不可以无限大，会导致非核心线程用不上
+
+  + 公式：（最大容忍延时 / 任务平均执行时间）* 核心线程池数
+
+  + 常用值：最大线程数
+
+    猜的，实际大小需要测试
+
++ 线程工厂
+
+  + 默认即可
+
++ 拒绝策略
+
+  + 如果不允许任务丢失，使用默认的`AbortPolicy`（常用）
+  + 如果允许任务丢失，使用`DiscardPolicy`
+
+# 死锁定位
+
++ `jps -l`命令找到需要查看的进程
++ `jstack + 进程号`查看堆栈信息，定位到代码位置，修改代码解决
 
 
 
