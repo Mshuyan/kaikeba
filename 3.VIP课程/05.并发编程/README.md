@@ -793,5 +793,184 @@ public final int getAndAddInt(Object var1, long var2, int var4) {
 
 + 界限可以构造方法指定，默认`Integer.MAX_VALUE`
 
-  
+# 线程相关接口
+
+## 接口说明
+
+![image-20201214112028884](assets/image-20201214112028884.png) 
+
++ `Runable`
+
+  + 没有返回值
+  + 不可以抛出异常
+
++ `Callable`
+
+  + 有返回值
+  + 可以抛出异常
+
++ `Future`
+
+  + 用于控制异步任务，获取异步计算结果
+
+  + code
+
+    ```java
+    boolean cancel(boolean mayInterruptIfRunning);
+    boolean isCancelled();
+    boolean isDone();
+    V get() throws InterruptedException, ExecutionException;
+    V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException;
+    ```
+
++ `RunableFuture`
+
+  + 可执行可控制的异步任务接口
+
++ `FutureTask`
+
+  + 异步任务实现类
+
+## demo
+
+```java
+class MyThread implements Callable<Integer> {
+    @Override
+    public Integer call() throws Exception {
+        System.out.println("callable come in ...");
+        try { TimeUnit.SECONDS.sleep(3); } catch (InterruptedException e) {e.printStackTrace(); }
+        return 1024;
+    }
+}
+
+public class CallableDemo {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        //创建FutureTask类，接受MyThread。
+        FutureTask<Integer> futureTask = new FutureTask<>(new MyThread());
+        //将FutureTask对象放到Thread类的构造器里面。
+        new Thread(futureTask, "AA").start();
+
+
+        int result01 = 100;
+        //用FutureTask的get方法得到返回值。
+        int result02 = futureTask.get();
+
+        System.out.println("result=" + (result01 + result02));
+    }
+}
+```
+
++ 真正的启动线程必须使用`Thread`，`Thread`只认`Runnable`接口，`FutureTask`接受`Callable`接口，所以需要将`Callable`交给`FutureTask`执行，`FutureTask`交给`Thread`执行
+
+# 线程池
+
+## 概述
+
++ 示意图
+
+  ![image-20201214152821737](assets/image-20201214152821737.png) 
+
+  + 当需要开启1个线程时，先判断线程池中是否有可以执行的线程
+  + 如果有，则直接拿出1个线程执行
+  + 如果没有，将该任务放入阻塞队列进行排队，线程中有任务执行结束后，从阻塞队列中取出下一个要执行的任务进行执行
+  + 如果阻塞队列满了时，使用拒绝策略处理此次申请
+
++ 优点
+
+  + 线程复用，节省创建销毁线程带来的开销，提高响应速度
+  + 线程的数量可控，防止OOM异常
+
+## 相关接口
+
+![image-20201214162812879](assets/image-20201214162812879.png) 
+
++ `Executor`
+
+  + 执行器
+
+  + code
+
+    ```java
+    void execute(Runnable command);
+    ```
+
++ `ExecutorService`
+
+  + 执行器服务
+
+  + 增加了一些任务的控制方法
+
+  + code
+
+    ```java
+    void shutdown();
+    List<Runnable> shutdownNow();
+    boolean isShutdown();
+    boolean isTerminated();
+    boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
+    <T> Future<T> submit(Callable<T> task);
+    <T> Future<T> submit(Runnable task, T result);
+    Future<?> submit(Runnable task);
+    ```
+
++ `AbstractExecutorService`
+
+  + `ExecutorService`的抽象实现类
+
++ `ThreadPoolExecutor`
+
+  + 线程池执行器
+  + 维护一个线程池，使用线程池中的线程执行任务
+
++ `ScheduledThreadPoolExecutor`
+
+  + 任务调度线程池执行器，支持`CRON`表达式的线程池执行器
+
++ `Executors`
+
+  + 线程池的创建需要指定很多参数，使用`Excutor`可以通过指定合适的参数创建适用于各种场景的线程池
+
+## 创建
+
++ `Executors`中提供了多种创建线程池的方法
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
