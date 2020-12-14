@@ -3,7 +3,11 @@ package thread;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import static java.lang.Thread.sleep;
 
 /**
  * 多个线程同时读一个资源类没有任何问题，所以为了满足并发量，读取共享资源应该可以同时进行。
@@ -14,7 +18,39 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * 		写-写 不能共存
  */
 public class ReadWriteLockDemo {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
+        ReentrantLock lock = new ReentrantLock();
+        Condition conditionA = lock.newCondition();
+        Condition conditionB = lock.newCondition();
+
+        new Thread(()->{
+            lock.lock();
+            try {
+                conditionA.await();
+            }catch (Exception e){}
+            finally {
+                lock.unlock();
+            }
+        },"A").start();
+
+        new Thread(()->{
+            lock.lock();
+            try {
+                conditionB.await();
+            }catch (Exception e){}
+            finally {
+                lock.unlock();
+            }
+        },"B").start();
+
+        sleep(1000);
+        // 先唤醒A
+        conditionA.signal();
+        // 再唤醒B
+        conditionB.signal();
+
+
+
         MyCache cache = new MyCache();
 
         //写

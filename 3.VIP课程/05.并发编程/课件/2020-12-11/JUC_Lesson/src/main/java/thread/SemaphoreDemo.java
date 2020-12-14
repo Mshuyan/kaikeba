@@ -12,21 +12,23 @@ import java.util.concurrent.TimeUnit;
  */
 public class SemaphoreDemo {
     public static void main(String[] args) {
-        Semaphore semaphore = new Semaphore(3);//模拟资源类，有3个空车位
+        //厕所有3个坑
+        Semaphore semaphore = new Semaphore(2);
 
-        for (int i = 1; i <= 6; i++) {
+        for (int i = 1; i <= 3; i++) {
+            // 6个人要上厕所
             new Thread(()->{
                 try{
-                    //占有资源
+                    //看看有没有坑，有就进去，没有就排队
                     semaphore.acquire();
-                    System.out.println(Thread.currentThread().getName()+"\t抢到车位");
+                    System.out.println(Thread.currentThread().getName()+"\t拉臭臭");
 
                     try { TimeUnit.SECONDS.sleep(3); } catch (InterruptedException e) {e.printStackTrace(); }
-                    System.out.println(Thread.currentThread().getName()+"\t停车3秒后离开车位");
+                    System.out.println(Thread.currentThread().getName()+"\t拉完了");
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
-                    //释放资源
+                    //出厕所
                     semaphore.release();
                 }
             }, String.valueOf(i)).start();

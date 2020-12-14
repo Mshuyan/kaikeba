@@ -1,3 +1,5 @@
+> 本章需要结合[多线程](https://github.com/Mshuyan/JavaBasic/tree/master/javaSE#%E5%A4%9A%E7%BA%BF%E7%A8%8B)学习
+
 # 概念
 
 ## JUC
@@ -512,5 +514,284 @@ public final int getAndAddInt(Object var1, long var2, int var4) {
 
 同`CopyOnWriteArrayList`
 
+# 锁
 
+## 锁类型
+
++ 可重入锁
+
++ 读写锁
+
++ 公平锁
+
++ 可中断锁
+
+  等待获取锁的线程可以中断，不等了
+
+## synchronized
+
+### 概述
+
++ JVM实现，底层是两个监控器
+  + `monitorenter`进入监控器
+  + `monitorexit`退出监控器
++ 是可重入锁，独占锁，非公平，不可中断，非读写
++ 没有超时时间，一直获取不到，就一直阻塞
++ 无法判断锁的状态
++ 用法
+  + `synchronized(obj)`锁住指定对象
+  + 加在方法上锁住`this`
+  + 加在`static`方法上锁住`Class`对象
++ 等待使用`wait`，唤醒使用`notify`（均位于`Object`类）
++ 释放锁
+  + `wait`释放锁，恢复后重新获取锁
+  + `sleep`不释放锁
+  + 抛出异常自动释放锁
+  + 代码执行结束释放锁
+
+### 线程生命周期
+
+参见[线程声明周期](https://github.com/Mshuyan/JavaBasic/tree/master/javaSE#%E7%BA%BF%E7%A8%8B%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F) 
+
+## JUC中的锁
+
+### ReentrantLock
+
++ 结合[lock](https://github.com/Mshuyan/JavaBasic/tree/master/javaSE#lock) 
+
++ 可重入锁，独占锁，可中断
+
++ 可重入不公平锁（常用）
+
+  ```java
+  Lock lock = new ReentrantLock();
+  Lock lock = new RentrantLock(false);
+  ```
+
++ 可重入公平锁
+
+  ```java
+  Lock lock = new RentrantLock(true);
+  ```
+
+### ReentrantReadWriteLock
+
++ 可重入读写锁，读锁是共享锁，写锁是独占锁，可中断
+
++ 可重入不公平读写锁（常用）
+
+  ```java
+  ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+  ReentrantReadWriteLock lock = new ReentrantReadWriteLock(false);
+  ```
+
++ 可重入公平读写锁
+
+  ```java
+  ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
+  ```
+
+### Condition
+
++ `Lock`锁的等待使用`await`，唤醒使用`signal`
+
++ 一个锁可以获取多个`Condition`对象，每个线程使用自己的`Condition`对象进行`await`操作，通过执行指定`Condition`对象的`signal`方法，可以唤醒指定的线程
+
++ demo
+
+  ```java
+  ReentrantLock lock = new ReentrantLock();
+  Condition conditionA = lock.newCondition();
+  Condition conditionB = lock.newCondition();
+  
+  new Thread(()->{
+      lock.lock();
+      try {
+          conditionA.await();
+      }catch (Exception e){}
+      finally {
+          lock.unlock();
+      }
+  },"A").start();
+  
+  new Thread(()->{
+      lock.lock();
+      try {
+          conditionB.await();
+      }catch (Exception e){}
+      finally {
+          lock.unlock();
+      }
+  },"B").start();
+  
+  sleep(1000);
+  // 先唤醒A
+  conditionA.signal();
+  // 再唤醒B
+  conditionB.signal();
+  ```
+
+  
+
+## 区别
+
+|  类别  |                         synchronized                         |                      lock                       |
+| :----: | :----------------------------------------------------------: | :---------------------------------------------: |
+|  类型  |                       关键字，JVM实现                        |                       类                        |
+| 释放锁 | 执行完同步代码自动释放锁<br />同步代码发生异常，jvm让线程释放锁 | 在finally中必须手动释放锁，不然容易造成线程死锁 |
+| 获取锁 |                         只有1种方式                          |                多种获取锁的方式                 |
+| 锁状态 |                     无法判断锁是否被占用                     |                    可以判断                     |
+| 锁类型 |               可重入、不可中断、非公平、非读写               |       可重入、可中断、可以公平、可以读写        |
+|  性能  |                             较低                             |                      较高                       |
+|  唤醒  |                         只能随机唤醒                         |         可以根据`condition`唤醒指定线程         |
+
+# 常用方法
+
+以下内容，参见[常用方法](https://github.com/Mshuyan/JavaBasic/tree/master/javaSE#%E5%B8%B8%E7%94%A8%E6%96%B9%E6%B3%95) 
+
++ thread类
+  + start
+  + sleep
+  + join
+  + yield
+  + interrupt
++ object类（与`synchronized`配合使用）
+  + wait
+  + notify
+  + notifyAll
++ condition（与`lock`配合使用）
+  + await
+  + signal
++ sleep与wait区别
++ 为什么wait、notify、notifyAll必须位于synchronized代码块
+
+
+
+# 并发工具类
+
+## CountDownLatch
+
++ 倒计数门闩
+  + 创建`CountDownLatch`变量，并指定初始值，主线程`await`
+  + 多线程执行操作，执行结束后`CountDownLatch`变量调用`countDown`方法进行减一操作
+  + 当`CountDownLatch`变量减少为0时，主线程被唤醒
+
+## CyclicBarrier
+
++ 多个线程准备就位之后，一起做一件事
+
++ demo
+
+  ```java
+  public static void main(String[] args) {
+      // 7个线程准备好后，执行参数2的回调
+      CyclicBarrier cyclicBarrier = new CyclicBarrier(7,()->{
+          System.out.println("====== Ready~ GO !!!");
+      });
+  
+      for (int i = 1; i <= 7; i++) {
+          // 7个线程陆续启动
+          new Thread(()->{
+              System.out.println(Thread.currentThread().getName() + "\t就位");
+              try {
+                  // 7个线程进入等待状态
+                  cyclicBarrier.await();
+                  // 7个线程准备好后，参数2的回调方法执行结束后，各个线程同时被唤醒，继续执行下面的操作
+                  System.out.println(Thread.currentThread().getName() + " run");
+              } catch (Exception e) {
+                  e.printStackTrace();
+              }
+          }, String.valueOf("选手" + i)).start();
+      }
+  }
+  /**
+   * 打印结果：
+   * 选手1	就位
+   * 选手3	就位
+   * 选手4	就位
+   * 选手7	就位
+   * 选手5	就位
+   * 选手6	就位
+   * 选手2	就位
+   * ====== Ready~ GO !!!
+   * 选手2 run
+   * 选手1 run
+   * 选手7 run
+   * 选手4 run
+   * 选手3 run
+   * 选手5 run
+   * 选手6 run
+   */
+  ```
+
+## Semaphore
+
++ 只允许指定数量的线程拿到资源，资源全部被拿光后其他线程只能阻塞，直到有人释放资源，被阻塞的线程才能拿到被释放的资源
+
++ 场景类似于上厕所
+
++ demo
+
+  ```java
+  public static void main(String[] args) {
+      //厕所有3个坑
+      Semaphore semaphore = new Semaphore(2);
+  
+      for (int i = 1; i <= 3; i++) {
+          // 6个人要上厕所
+          new Thread(()->{
+              try{
+                  //看看有没有坑，有就进去，没有就排队
+                  semaphore.acquire();
+                  System.out.println(Thread.currentThread().getName()+"\t拉臭臭");
+  
+                  try { TimeUnit.SECONDS.sleep(3); } catch (InterruptedException e) {e.printStackTrace(); }
+                  System.out.println(Thread.currentThread().getName()+"\t拉完了");
+              } catch (Exception e) {
+                  e.printStackTrace();
+              } finally {
+                  //出厕所
+                  semaphore.release();
+              }
+          }, String.valueOf(i)).start();
+      }
+  }
+  /**
+   * 打印结果：
+   * 2	拉臭臭
+   * 1	拉臭臭
+   * 1	拉完了
+   * 2	拉完了
+   * 3	拉臭臭
+   * 3	拉完了
+   */
+  ```
+
+# 阻塞队列
+
+## 概述
+
++ 所有的阻塞队列实现了`BlockingQueue`接口
+
++ 方法对比
+
+  | 操作/失败时行为 | 抛出异常 | 返回boolean |   阻塞   |           超时           |
+  | :-------------: | :------: | :---------: | :------: | :----------------------: |
+  |      插入       | add(E e) | offer(E e)  | put(E e) | offer(E e,Time,TimeUnit) |
+  |      取出       | remove() |   poll()    |  take()  |   poll(Time,TimeUnit)    |
+
++ 常用的是`超时`列的方法
+
+## ArrayBlockingQueue
+
++ 数组结构的有界限的阻塞队列
++ 界限需要构造方法指定
+
+## LinkedBlockingQueue
+
++ 链表结构的有界限的阻塞队列
+
++ 界限可以构造方法指定，默认`Integer.MAX_VALUE`
+
+  
 
