@@ -14,7 +14,7 @@ public class SyncProducer {
         DefaultMQProducer producer = new
                 DefaultMQProducer("please_rename_unique_group_name");
         // Specify name server addresses.
-        producer.setNamesrvAddr("localhost:9876");
+        producer.setNamesrvAddr("172.17.102.46:9876");
 //        producer.createTopic();
 //        producer.setMaxMessageSize();
         //Launch the instance.

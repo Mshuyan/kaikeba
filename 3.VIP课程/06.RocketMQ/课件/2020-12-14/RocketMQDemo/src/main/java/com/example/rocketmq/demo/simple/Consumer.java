@@ -18,7 +18,7 @@ public class Consumer {
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("group1");
 
         // Specify name server addresses.
-        consumer.setNamesrvAddr("localhost:9876");
+        consumer.setNamesrvAddr("172.17.102.46:9876");
 //        consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
 
 
