@@ -11,26 +11,19 @@ import java.util.concurrent.atomic.AtomicLong;
 public class OrderedConsumer {
     public static void main(String[] args) throws Exception {
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("example_group_name");
-
-
 //        consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
-
         consumer.subscribe("TopicOrder", "TagA || TagC || TagD");
-
-
-
         consumer.registerMessageListener(new MessageListenerOrderly() {
-
             AtomicLong consumeTimes = new AtomicLong(0);
+
             @Override
             public ConsumeOrderlyStatus consumeMessage(List<MessageExt> msgs,
                                                        ConsumeOrderlyContext context) {
                 context.setAutoCommit(false);
 //                System.out.printf(Thread.currentThread().getName() + " Receive New Messages: " + msgs + "%n");
-                for(MessageExt me:msgs){
+                for (MessageExt me : msgs) {
                     System.out.printf(Thread.currentThread().getName() + " Receive New Messages: " + new String(me.getBody()) + "%n");
                 }
-
                 this.consumeTimes.incrementAndGet();
                 if ((this.consumeTimes.get() % 2) == 0) {
                     return ConsumeOrderlyStatus.SUCCESS;
@@ -43,12 +36,9 @@ public class OrderedConsumer {
                     return ConsumeOrderlyStatus.SUSPEND_CURRENT_QUEUE_A_MOMENT;
                 }
                 return ConsumeOrderlyStatus.SUCCESS;
-
             }
         });
-
         consumer.start();
-
         System.out.printf("Consumer Started.%n");
     }
 }
