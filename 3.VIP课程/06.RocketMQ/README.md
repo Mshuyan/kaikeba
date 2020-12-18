@@ -90,6 +90,10 @@
   </dependency>
   ```
 
+## docker安装
+
+
+
 ## 控制台安装
 
 + [下载源码](https://github.com/apache/rocketmq-externals)，不要下载`release`版本，那是`1.0.0`版本的，源码是`2.0.0`版本
