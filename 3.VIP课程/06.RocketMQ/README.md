@@ -90,6 +90,10 @@
   </dependency>
   ```
 
+## docker安装
+
+
+
 ## 控制台安装
 
 + [下载源码](https://github.com/apache/rocketmq-externals)，不要下载`release`版本，那是`1.0.0`版本的，源码是`2.0.0`版本
@@ -210,6 +214,10 @@ broker服务端配置有2种方式：
 + `autoCreateTopicEnable`
   + 是否开启自动创建topic
   + 默认值`true`
++ `brokerId`
+  + 值为0表示主节点，大于0表示从节点
++ `defaultTopicQueueNums`
+  + 1个`topic`中默认有多少个队列
 
 # 基本概念
 
@@ -217,31 +225,62 @@ broker服务端配置有2种方式：
 
 + `producerGroup`
 
-
++ 发送同一类消息（`topic`相同）的多个生产者放入同一个生产者组
 
 ## 消费者组
 
 + `consumerGroup`
-
-
++ 消费逻辑相同（`topic`相同，`tag`相同）的多个消费者放入同一个消费者组
 
 ## 主题
 
 + `topic`
 
++ 1个`topic`下有多个队列
++ 一般同一类消息发送到同一个topic
++ 生产者和消费者都可以发送或消费多个topic中的消息
++ 1个topic中的队列会落到多个`broker`节点上，但是每个队列只能在1个`broker`节点上
 
+## 队列
+
++ `queue`
+
++ 集群模式下，1个队列只能被1个消费者消费；广播模式下，1个队列可以被同1个消费者组中所有消费者消费
+
++ 一个消费者可以消费多个队列中的消息
+
++ 每个队列只能在1个`broker`节点上
+
++ `topic`中队列数量指定方式
+
+  读写队列数量分开设置时建议相同
+
+  + 代码
+
+    ```java
+    producer.setDefaultTopicQueueNums(8);
+    ```
+
+  + 配置文件
+
+    ```
+    defaultTopicQueueNums=16
+    ```
+
+  + 控制台指定
+
+## 消息
+
++ 必须指定`topic`
++ 可以指定多个`tag`
++ 可以添加`property`属性
 
 ## 标签
 
 + `tag`
 
-
-
-## 键
-
-+ `key`
-
-  
++ 消息的标签，可以用来过滤消息，
++ 本质就是`name`为`TAGS`的`propety`属性，但是不能当作普通`property`看，使用`tag`进行过滤时，代码中会自动将`name`为`TAGS`的`propety`属性识别为`tag`进行过滤
 
 ## 消费模式
 
@@ -254,7 +293,21 @@ broker服务端配置有2种方式：
     + 每个消费者使用自己的偏移量获取队列中的消息
     + 参见[广播消息](#广播消息) 
 
+## 偏移量
+
++ 用于标记消费者从哪个位置开始向后进行消费
++ 分为`LocalfileOffsetStore`和`RemoteBrokerOffsetStore`
+  + `RemoteBrokerOffsetStore`
+    + 消费者使用`集群模式`进行消费时，在`broker`服务端使用`RemoteBrokerOffsetStore`结构记录当前队列消费到哪了，这样可以保证每条消息只能被1个消费者消费1次
+    + 会持久化到`broker`服务器上
+  + `LocalfileOffsetStore`
+    + 消费者使用`广播模式`进行消费时，在`consumer`客户端使用`LocalfileOffsetStore`结构记录当前队列消费到哪了，这样可以保证每条消息可以被每个消费者消费1次
+    + 会持久化到本地文件
+
 ## 重置消费位点
+
++ 重新设置服务端偏移量，从指定时间开始消费
++ 不支持广播模式，因为广播模式偏移量在客户端保存
 
 
 
@@ -663,7 +716,7 @@ broker服务端配置有2种方式：
 
 + 消息回查
 
-  服务端发现有长时间未确认的`半事务消息`，时，会主动向消息生产者询问消息状态
+  服务端发现有长时间未确认的`半事务消息`，时，会主动向消息发送方询问消息状态，消息发送方再次提交二次确认
 
 + 注意事项
 
@@ -674,6 +727,24 @@ broker服务端配置有2种方式：
     + 发送消息时也可以通过设置`CHECK_IMMUNITY_TIME_IN_SECONDS`属性指定，优先于全局配置
   + 消息可能丢失，如需保证消息绝对不丢失，需要使用`同步的双重写入机制`
   + 事务消息的生产者 ID 不能与其他类型消息的生产者 ID 共享。与其他类型的消息不同，事务消息允许反向查询、MQ服务器能通过它们的生产者 ID 查询到消费者
+  
++ demo参见[基于RocketMQ的分布式事务](https://juejin.cn/post/6844904099993878536) 
+
+  执行`producer.sendMessageInTransaction(msg,null);`后，当前线程处于阻塞状态，`broker`返回发送结果后，先回调`TransactionListener#executeLocalTransaction`方法，再从`producer.sendMessageInTransaction(msg,null);`继续向下执行
+
++ 原理
+
+  `broker`中存在两个`topic`：
+
+  + `RMQ_SYS_TRANS_HALF_TOPIC`半事务消息
+
+    第一次提交的消息统一先放在这里
+
+  + `RMQ_SYS_TRANS_OP_HALF_TOPIC`二次提交消息
+
+    第二次提交的消息统一放在这里
+
+  `broker`根据这两个`topic`进行回查、commit重新投递、回滚等操作
 
 # 源码解读
 
@@ -696,3 +767,50 @@ broker服务端配置有2种方式：
 + 发送消息使用`Message`实体类
 + 消费消息使用`MessageExt`实体类，他是`Message`的子类
 
+# 集群
+
+![image-20201219012808973](assets/image-20201219012808973.png) 
+
+## 基本原理
+
++ 所有节点通过`netty`通信
+
++ name server
+
+  + 用于管理路由信息和元数据信息
+
+  + `zookeeper`实现的是强一致性方案，`name server`仅管理了一些元数据信息，使用最终一致性解决方案即可
+
+  + `name server`集群各节点之间不能通信，`broker`节点会分别注册到所有`name server`节点上，每`30s`发送一次心跳包
+
+  + 每`10s`扫描1次，超过`120s`没有收到客户端的心跳包则将客户端剔除
+
+  + 配置多个`name server`可以使用`;`分割，`NettyRemotingClient`类中第一次选择`name server`是随机的，后续轮询选择使用哪个`name server`
+
+    ```java
+    producer.setNamesrvAddr("172.17.102.46:9876;172.17.102.46:9877");
+    ```
+
++ 客户端每`30s`从`name server`获取路由信息和元数据信息
+
+## 配置主从
+
++ `broker.conf`中
+
+# springboot集成
+
+## 介绍
+
++ 使用`apache`官方依赖
+
+  ```xml
+  <dependency>
+      <groupId>com.github.thierrysquirrel</groupId>
+      <artifactId>rocketmq-spring-boot-starter</artifactId>
+      <version>2.2.1-RELEASE</version>
+  </dependency>
+  ```
+
++ [官网地址](https://github.com/apache/rocketmq-spring) 
+
++ 

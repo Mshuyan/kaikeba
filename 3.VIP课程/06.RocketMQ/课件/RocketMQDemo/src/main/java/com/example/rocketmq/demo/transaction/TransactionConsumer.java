@@ -17,7 +17,7 @@ public class TransactionConsumer {
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer("GroupTransaction");
 
         // 2.指定nameserver地址
-        consumer.setNamesrvAddr("localhost:9876");
+        consumer.setNamesrvAddr("172.17.102.46:9876");
 
         // 3.订阅主题Topic和Tag
         consumer.subscribe("TransactionTopic", "*");
