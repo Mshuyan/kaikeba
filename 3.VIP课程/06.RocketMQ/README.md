@@ -1055,7 +1055,20 @@ broker服务端配置有2种方式：
 + 名称：`%DLQ%Cunsumer组名`，如：`%DLQ%online-test`
 + 一个死信队列对应一个消费组
 
+## 消息查询
 
+3种查询方式：
+
++ key
+  + 发送消息时生产者指定得`key`，可以用于跟踪消息
++ MessageId
+  + broker端生成
++ UniqueKey
+  + 客户端生成
++ `UniqueKey`相同，`MessageId`不同，表明这条消息是生产端向`broker`端投递消息时出现重复
++ `UniqueKey`和`MessageId`均相同，表明这条消息是`broker`端向消费端投递消息时出现重复
+
+## Rebalance
 
 
 
