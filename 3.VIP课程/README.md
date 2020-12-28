@@ -23,6 +23,12 @@
 
   + rocketmq-spring-boot-starter
     + 事务消息和想要的不一样
+  
++ kafaka
+
+  + 互为主从？
+  + 只有消费者组？
+  + 
 
 
 
