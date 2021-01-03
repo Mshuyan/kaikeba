@@ -1,0 +1,15 @@
+# 配置配置中心的服务地址
+spring:
+  application:
+    # 配置应用名称
+    name: msc-provider-depart
+  cloud:
+    nacos:
+      # 配置中心相关配置
+      config:
+        # 配置中心地址
+        server-addr: localhost:8847,localhost:8848,localhost:8849
+        # 配置文件扩展名称
+        file-extension: yml
+  profiles: # 配置文件只有获取，看不到！！！安全性也有保证
+    active: prod
