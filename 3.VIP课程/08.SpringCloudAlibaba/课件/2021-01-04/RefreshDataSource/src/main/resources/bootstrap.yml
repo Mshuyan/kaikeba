@@ -1,0 +1,18 @@
+#server.port= 8081
+#spring.application.name=nacos-config
+#spring.cloud.nacos.config.enabled=true
+#spring.cloud.nacos.config.server-addr=127.0.0.1:8848
+
+spring:
+  application:
+    name: nacos-config
+  cloud:
+    nacos:
+      config:
+        server-addr: 192.168.33.163:8848
+#        prefix: nacos-config
+        file-extension: yaml
+  profiles:
+    active: dev
+server:
+  port: 8081
