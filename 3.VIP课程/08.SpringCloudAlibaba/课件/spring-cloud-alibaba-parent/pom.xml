@@ -14,5 +14,12 @@
     <artifactId>spring-cloud-alibaba-parent</artifactId>
     <version>1.0-SNAPSHOT</version>
 
+    <modules>
+        <module>03-provider-nacos-config</module>
+        <module>02-provider-nacos</module>
+        <module>02-consumer-nacos</module>
+        <module>01-provider</module>
+        <module>01-consumer</module>
+    </modules>
 
 </project>
