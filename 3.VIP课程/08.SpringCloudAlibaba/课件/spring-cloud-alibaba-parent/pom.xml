@@ -20,6 +20,8 @@
         <module>02-consumer-nacos</module>
         <module>01-provider</module>
         <module>01-consumer</module>
+        <module>04-consumer-nacos-fegin</module>
+        <module>04-provider-feign</module>
     </modules>
 
 </project>
