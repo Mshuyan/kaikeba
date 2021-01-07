@@ -1,0 +1,44 @@
+server:
+  # 默认端口是8080
+  port: 8080
+spring:
+  application:
+    name: msc-consumer-depart
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+
+feign:
+  client:
+    config:
+      default:
+        # 连接超时时间，默认是2秒
+        connectTimeout: 5000
+        # 数据读取超时时间
+        readTimeout: 5000
+  hystrix:
+    # 配置开启feign熔断器的支持
+    enabled: true
+
+# 配置开启请求压缩
+feign.compression.request.enabled: true
+# 配置开启响应压缩
+feign.compression.response.enabled: true
+
+# 设置压缩的内容数据类型
+feign.compression.request.mime-types: text/xml,application/xml,application/json
+# 压缩触发的最小大小，1kb压缩没有意义
+feign.compression.request.min-request-size: 2048
+
+
+# 第一种改法：指定要使用的负载均衡策略
+# <clientName>.<clientConfigNameSpace>.NFLoadBalancerRuleClassName
+msc-provider-depart:
+  ribbon:
+    NFLoadBalancerRuleClassName: com.netflix.loadbalancer.RandomRule
+
+
+# com.netflix.loadbalancer.RoundRobinRule 轮询
+# com.netflix.loadbalancer.BestAvailableRule 最可用策略
+# com.netflix.loadbalancer.AvailabilityFilteringRule 可用过滤算法
