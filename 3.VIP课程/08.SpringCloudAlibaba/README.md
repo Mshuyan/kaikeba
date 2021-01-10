@@ -2,6 +2,14 @@
 
 + 客户端定时从注册中心拉取信息，并缓存到本地，即使注册中心死掉了，也不影响服务服务调用
 
+## 注册中心功能
+
++ 服务注册
++ 服务续约
++ 获取服务列表
++ 服务下线
++ 失效剔除
+
 ## 配置中心原理
 
 ### SpringCloudConfig
@@ -105,4 +113,26 @@
 ## 源码解析
 
 ### Nacos客户端
+
+#### Nacos与springcloud整合
+
++ 引入`spring-cloud-starter-alibaba-nacos-discovery`依赖后，自动引入了`spring-cloud-commons`这个依赖；这个依赖是`springcloud`组件必须引入的公共`jar`包，所有组件都需要和这个组件进行对接
++ `spring-cloud-commons`通过`SPI`机制加载`META-INF/spring.factories`中的配置类；其中`AutoServiceRegistrationAutoConfiguration`是关于注册中心的配置类，这个配置类中要求注入`AutoServiceRegistration`这个类
+
++ `spring-cloud-starter-alibaba-nacos-discovery`通过`SPI`机制加载`META-INF/spring.factories`中的配置类；其中`NacosServiceRegistryAutoConfiguration`中注入了`AutoServiceRegistration`的实现类`NacosAutoServiceRegistration`，这个就是`nacos`注册中心的入口
+
+#### Nacos注册与续约
+
+![image-20210111011459333](assets/image-20210111011459333.png) 
+
++ `NacosAutoServiceRegistration`是抽象类`AbstractAutoServiceRegistration`的子类，而`AbstractAutoServiceRegistration`是`ApplicationListener`的实现类，可以监听应用的各种事件
++ `AbstractAutoServiceRegistration`监听到服务启动的事件之后，依次调用`bind()`、`start()`方法，最终进入`NacosServiceRegistry#register()`方法
++ `NacosServiceRegistry#register()`方法先通过`namingservice()`方法获取命名服务，然后调用`namingService.registerInstance()`方法完成如下3件事：
+  + 调用`beatReactor.buildBeatInfo()`方法构建心跳信息
+  + 调用`beatReactor.addBeatInfo()`方法添加心跳检测任务
+  + 调用`serverProxy.registerService()`方法注册服务
+
+
+
+### Nacos服务端
 

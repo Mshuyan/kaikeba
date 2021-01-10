@@ -22,6 +22,10 @@
         <module>01-consumer</module>
         <module>04-consumer-nacos-fegin</module>
         <module>04-provider-feign</module>
+        <module>05-gateway-api</module>
+        <module>05-gateway-api-ribbon</module>
+        <module>05-gateway-config</module>
+        <module>05-gateway-config-ribbon</module>
     </modules>
 
 </project>
