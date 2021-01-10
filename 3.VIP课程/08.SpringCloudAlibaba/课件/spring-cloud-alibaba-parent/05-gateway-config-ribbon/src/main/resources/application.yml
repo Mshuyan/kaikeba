@@ -1,0 +1,24 @@
+server:
+  # 默认端口是8080
+  port: 9000
+spring:
+  application:
+    name: msc-gateway-depart
+  cloud:
+    nacos:
+      # 注册中心地址： 注册目的获取集群的ip及端口
+      discovery:
+        server-addr: 127.0.0.1:8848
+    gateway:
+      discovery:
+        locator:
+          # 配置开启与DiscoveryClient整合
+          enabled: true
+      routes:
+        # 动态路由配置：路由id
+        - id: ribbon_route
+          # 路由uri地址, loadbalancer://服务名称
+          uri: lb://msc-provider-depart
+          predicates:
+            # 拦截所有提供者的请求到提供者集群服务
+            - Path=/provider/depart/**
