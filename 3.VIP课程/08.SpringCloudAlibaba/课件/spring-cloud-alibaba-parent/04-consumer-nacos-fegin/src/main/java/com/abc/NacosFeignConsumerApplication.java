@@ -4,8 +4,11 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 
+//@Enable**注入对象
+//@Import注入对象
+//**Registrar注入对象
 @SpringBootApplication
-@EnableFeignClients(basePackages = "com.abc.service")//开启当前服务支持Feign客户端，作用扫描所有客户端接口
+@EnableFeignClients(basePackages = {"com.abc.service"})//开启当前服务支持Feign客户端，作用扫描所有客户端接口
 public class NacosFeignConsumerApplication {
 
     public static void main(String[] args) {

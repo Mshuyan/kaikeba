@@ -16,6 +16,8 @@ import java.util.List;
 @RequestMapping("/feign/consumer/depart")
 public class DepartFeignController {
 
+    //Ambiguous mapping 这个BUG其实是SpringMVC的代码的错误！
+    //深入源码告诉你为什么？整合Feign
     @Autowired
     private DepartService departService;
 

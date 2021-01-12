@@ -1,0 +1,30 @@
+server:
+  # 默认端口是8080
+  port: 9000
+spring:
+  application:
+    name: msc-gateway-config
+  cloud:
+    gateway:
+      # 配置 路由 集合
+      routes:
+        # 添加前缀 过滤器
+#        - id: prefixPath_filter
+#          uri: http://localhost:8080
+#          predicates:
+#            # 拦截所有请求
+#            - Path=/**
+#          filters:
+#            - PrefixPath=/consumer
+        # 去除前缀 过滤器
+        - id: stripPrefix_filter
+          uri: http://localhost:8080
+          predicates:
+            - Path=/**
+          filters:
+            - StripPrefix=2
+# http://127.0.0.1:9000/depart/get/1                   --> http://127.0.0.1:8080/depart/get/1
+# http://localhost:9000/depart/get/1                   --> http://localhost:8080/consumer/depart/get/1
+# 注意需要将之前的配置移出
+# http://localhost:9000/api/goods/consumer/depart/get/1 --> http://localhost:8080/consumer/depart/get/1
+

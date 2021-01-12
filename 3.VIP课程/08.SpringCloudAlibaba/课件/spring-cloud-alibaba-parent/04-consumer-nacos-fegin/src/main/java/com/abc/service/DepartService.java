@@ -20,13 +20,14 @@ import java.util.List;
  *  configuration属性：指定Feign客户端配置类的字节码
  */
 @FeignClient(value = "msc-provider-depart"
-        //, fallback = DepartServiceImplFallBack.class
+        , fallback = DepartServiceImplFallBack.class
         , configuration = LogConfig.class)//注解作用：声明当前为Feign客户端接口
-@RequestMapping("/provider/depart")// 参数为要调用的提供者相应的uri，抽取所有方法的公有uri地址
+// 参数为要调用的提供者相应的uri，抽取所有方法的公有uri地址
+@RequestMapping("/provider/depart")
 public interface DepartService {//更加符合面向接口api调用习惯
-
     /**
      * 疑问：老师为什么SpringMVC写到接口！
+     *
      */
     @PostMapping("/save")
     boolean saveDepart(@RequestBody Depart depart);

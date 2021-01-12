@@ -8,6 +8,10 @@ spring:
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
+    loadbalancer:
+      ribbon:
+        # 关闭ribbon的支持，关闭之后针对ribbon的负载均衡配置均失效
+        enabled: false
 
 feign:
   client:

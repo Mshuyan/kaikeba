@@ -2,10 +2,12 @@ package com.abc.service;
 
 import com.abc.bean.Depart;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.util.List;
 
-//@Component
+@Component
+@RequestMapping("/abc/depart")
 public class DepartServiceImplFallBack implements DepartService {
     @Override
     public boolean saveDepart(Depart depart) {
@@ -28,7 +30,6 @@ public class DepartServiceImplFallBack implements DepartService {
         depart.setName("查无此信息");
         return depart;
     }
-
     @Override
     public List<Depart> listAllDeparts() {
         return null;
