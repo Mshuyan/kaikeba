@@ -134,3 +134,60 @@
 
 ### Nacos服务端
 
+#### 分级存储模型
+
+![image-20210113005223224](assets/image-20210113005223224.png) 
+
+Nacos考虑到了多机房的情况，所以服务一共分为3级：
+
++ 服务
+  + 1个nacos客户端服务的名称对应Nacos中的服务
+  + 1个服务包含多个集群
+  + 对应源码中`Service`类
++ 集群
+  + 隶属于某一个`Service`的多个服务实例的集群，一般对应1个机房
+  + 对应源码中`Cluster`类
++ 实例
+  + 具体服务实例
+  + 对应`Instance`类
+
+#### 处理注册心跳请求源码
+
++ 服务启动类：`console`模块 
+
+##### 注册服务接口
+
++ `InstanceController#register()`
+
++ 时序图
+
+  ![image-20210113011038631](assets/image-20210113011038631.png) 
+
+##### 心跳接口
+
++ `InstanceController#beat()`
+
++ 时序图
+
+  ![image-20210113013720375](assets/image-20210113013720375.png) 
+
+# OpenFeign
+
+## 请求压缩
+
++ feign使用的是http协议，请求相对其他协议需要传输更多字节，所以需求要通过压缩算法比请求体比较大的请求进行压缩
+
++ 相关配置
+
+  ```yml
+  # 配置开启请求压缩
+  feign.compression.request.enabled: true
+  # 配置开启响应压缩
+  feign.compression.response.enabled: true
+  # 设置压缩的内容数据类型
+  feign.compression.request.mime-types: text/xml,application/xml,application/json
+  # 压缩触发的最小大小，1kb压缩没有意义
+  feign.compression.request.min-request-size: 2048
+  ```
+
+  
