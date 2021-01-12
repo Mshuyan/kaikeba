@@ -132,7 +132,5 @@
   + 调用`beatReactor.addBeatInfo()`方法添加心跳检测任务
   + 调用`serverProxy.registerService()`方法注册服务
 
-
-
 ### Nacos服务端
 
