@@ -1,0 +1,6 @@
+server:
+  # 默认端口是8080
+  port: 9001
+spring:
+  application:
+    name: msc-gateway-api

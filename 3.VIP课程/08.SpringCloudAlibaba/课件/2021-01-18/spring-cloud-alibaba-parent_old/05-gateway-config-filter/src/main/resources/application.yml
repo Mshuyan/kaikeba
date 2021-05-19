@@ -1,0 +1,65 @@
+server:
+  # 默认端口是8080
+  port: 9000
+spring:
+  application:
+    name: msc-gateway-config
+  cloud:
+    gateway:
+      # 全局过滤器：多网关的所有路由都生效
+      # 局部过滤器：配置在哪个路由，就对那个路由生效
+#      default-filters:
+#        - name: CircuitBreaker
+#          args:
+#            name: myCircuitBreaker
+#            fallbackUri: forward:/fallback
+      # 配置 路由 集合
+      routes:
+        - id: requestRateLimiter_filter
+          uri: http://localhost:8080
+          predicates:
+            - Path=/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                #key-resolver：用于限流的键的解析器的 Bean 对象的名字。它使用 SpEL 表达式根据#{@beanName}从 Spring 容器中获取 Bean 对象。
+                key-resolver: "#{@keyResolver}"
+                #replenishRate：令牌桶每秒填充平均速率。
+                redis-rate-limiter.replenishRate: 10
+                #burstCapacity：令牌桶总容量。
+                redis-rate-limiter.burstCapacity: 20
+#        - id: test_filter
+#          uri: http://localhost:8080
+#          predicates:
+#            - Path=/**
+        # 添加前缀 过滤器
+#        - id: prefixPath_filter
+#          uri: http://localhost:8080
+#          predicates:
+#            # 拦截所有请求
+#            - Path=/**
+#          filters:
+#            - PrefixPath=/consumer
+        # 去除前缀 过滤器
+  redis:
+    port: 6379
+    host: localhost
+#        - id: stripPrefix_filter
+#          uri: http://localhost:8080
+#          predicates:
+#            - Path=/**
+#          filters:
+#            - StripPrefix=2
+#        - id: circuitBreaker_filter
+#          uri: http://localhost:8080
+#          predicates:
+#            - Path=/**
+#          filters:
+#            - name: CircuitBreaker
+#              args:
+#                name: myCircuitBreaker
+#                fallbackUri: forward:/fallback
+# http://127.0.0.1:9000/depart/get/1                   --> http://127.0.0.1:8080/depart/get/1
+# http://localhost:9000/depart/get/1                   --> http://localhost:8080/consumer/depart/get/1
+# 注意需要将之前的配置移出
+# http://localhost:9000/api/goods/consumer/depart/get/1 --> http://localhost:8080/consumer/depart/get/1

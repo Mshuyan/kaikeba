@@ -1,0 +1,31 @@
+server:
+  # 默认端口是8080
+  port: 9000
+spring:
+  application:
+    name: msc-gateway-config
+  cloud:
+    gateway:
+      # 配置 路由 集合
+      routes:
+#        - id: baidu_route
+#          uri: https://www.baidu.com
+#          # 断言：拦截请求的规则
+#          predicates:
+#            - Path=/**
+        # 配置Path断言工厂1，路由到provider
+#        - id: path_provider_route
+#          uri: http://localhost:8081
+#          predicates: # 断言--> 断言工厂
+#            - Path=/provider/**
+#        # 配置Path断言工厂2，路由到consumer
+#        - id: path_consumer_route
+#          uri: http://localhost:8080
+#          predicates:
+#            - Path=/consumer/**
+        # after断言工厂: 如果当前Request请求时间 在参数之后，返回true
+        # 返回false的情况下，错误提示是404 Not Found
+        - id: after_route
+          uri: https://www.baidu.com
+          predicates:
+            - After=2020-01-20T17:42:47.789-07:00[Asia/Shanghai]

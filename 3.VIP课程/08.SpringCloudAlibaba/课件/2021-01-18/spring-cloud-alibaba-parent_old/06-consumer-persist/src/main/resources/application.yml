@@ -1,0 +1,23 @@
+server:
+  # 默认端口是8080
+  port: 8080
+spring:
+  application:
+    name: msc-consumer-depart
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    sentinel:
+      # 配置开启Dashboard主动发现此应用
+      eager: true
+      transport:
+        port: 8719
+        dashboard: localhost:8888
+      datasource:
+        my-ds-flow:
+          nacos:
+            server-add: localhost:8848
+            data-id: my_consumer_rule
+            rule-type: flow
+            data-type: json

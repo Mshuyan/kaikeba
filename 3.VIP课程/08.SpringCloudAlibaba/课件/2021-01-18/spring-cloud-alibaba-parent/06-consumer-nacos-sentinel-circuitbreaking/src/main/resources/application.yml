@@ -1,0 +1,22 @@
+server:
+  # 默认端口是8080
+  port: 8080
+spring:
+  application:
+    name: msc-consumer-depart
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    sentinel:
+      # 该配置能够使dashboard主动发现该应用
+      eager: true
+      transport:
+        # 配置管控台的主机地址+端口
+        dashboard: localhost:8888
+        # 传输配置数据端口
+        port: 8719
+feign:
+  # 配置开启feign对sentinel的支持
+  sentinel:
+    enabled: true
