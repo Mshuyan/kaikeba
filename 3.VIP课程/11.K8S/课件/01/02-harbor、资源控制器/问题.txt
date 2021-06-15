@@ -1,0 +1,80 @@
+
+1、按照我对docker的理解，宿主机a，想要访问宿主机机b中的容器，
+哪怕是局域网访问，一定要让这个容器绑定宿主机b的物理端口，然后通过宿主机b的ip和端口访问
+
+但是老师今天的课程中，他说k8s内网访问不用绑定物理端口。这是为啥？因为flannel.这个东西做的吗？
+这个flannel具体是啥东西？
+
+2、还有就是，一个pod里面如果有多个不同的容器，比如这个pod里面有nginx redis mysql那么我们的操作
+是不是应该创建3个service？
+
+3、老师创建service的时候，用的是3000这个端口，绑定80端口、假设我的pod里有多个容器，端口不同。
+那么我创建service的时候，是不是要用多个端口去绑定容器的端口？Service的虚拟端口和容器的端口是一对一的吗
+我怀疑我这里是进入了一个思维误区，因为昨天老师没有讲一个pod多个容器，有些地方我有点难抽象出来、
+比如，一个pod下面多个容器，那么容器的ip和pod的ip是不是一样的？容器的端口和pod的端口的关系？
+
+4、kube-proxy 占用物理端口的事情
+
+5、ipvsadm -Ln 查询不到 路由ip映射关系？？
+   kubectl edit configmap kube-proxy -n kube-system 修改configmap资源对象，修改为ipvs模式。
+
+6、service是否存在单点故障？？？
+	service存在与每一个node节点，同时endpoints资源对象存储在etcd，不会存在单点问题
+7、service是否会存储单点性能问题？？？
+	不会。service只负责分发请求，不负责具体的业务的处理。因此service的性能没有任何压力。
+
+
+# yaml文件方式创建 deployment 
+#创建deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deploy
+  namespace: default
+ # 第一段： 用来描述Deployment对象。
+spec:
+  replicas: 3  --- 告知副本控制器ReplicaSet维护3个副本
+  selector:    --- 通过标签选择器去维护pod
+    matchLabels:
+      app: myapp
+      release: stabel
+  # 第二段：给ReplicaSet来使用的。
+  template:
+    metadata:
+      labels:
+        app: myapp
+        release: stabel
+        env: test
+    spec:
+      containers:
+      - name: myapp
+        image: hub.kaikeba.com/library/myapp:v1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 80
+# 第三段：描述pod
+
+
+# 创建service服务
+
+#创建service服务
+apiVersion: v1
+kind: Service
+metadata:
+  name: myweb
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    app: myapp
+    release: stabel
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+
+  # 作业： 通过yaml文件方式部署eureka.tar镜像。
+
+
+
