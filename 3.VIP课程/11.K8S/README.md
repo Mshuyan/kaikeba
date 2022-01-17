@@ -1,3 +1,5 @@
+> + [k8s中文文档](http://docs.kubernetes.org.cn) 
+
 # 介绍
 
 ## 主要功能
@@ -24,7 +26,7 @@
 + `controller`：控制器，负责维护`node`节点资源对象
 + `apiserver`：网关
 + `etcd`：分布式键值数据库，用于存储节点信息
-+ `node`节点：每个节点运行1个`kubelet`进行，用于维护本机得`pod`
++ `node`节点：每个节点运行1个`kubelet`进程，用于维护本机得`pod`
 + `registry`：镜像仓库
 
 ## node节点
@@ -70,7 +72,7 @@
 + 安装`iptables`并置空规则，用于后续使用`iptables`实现`k8s`得负载均衡
 
   ```shell
-  $ yum -y install iptables-services && systemctl start iptables && systemctl enable iptables && iptables -F && service iptables saveyum -y install iptables-services && systemctl start iptables && systemctl enable iptables && iptables -F && service iptables save
+  $ yum -y install iptables-services && systemctl start iptables && systemctl enable iptables && iptables -F && service iptables save
   ```
 
 + 关闭swap分区（虚拟内存）
@@ -208,6 +210,12 @@
 
     + 重启docker
 
++ 开机启动
+
+  ```
+  systemctl enable docker
+  ```
+
 ### 安装K8S
 
 > + k8s得3种安装方式：
@@ -247,58 +255,36 @@ $ systemctl enable kubelet && systemctl start kubelet
   + 从国内镜像仓库下载，并重命名
 
     ```
-    docker pull registry.aliyuncs.com/google_containers/kube-apiserver:v1.21.2
-    docker tag registry.aliyuncs.com/google_containers/kube-apiserver:v1.21.2 k8s.gcr.io/kube-apiserver:v1.21.2
-    docker rmi registry.aliyuncs.com/google_containers/kube-apiserver:v1.21.2
+    docker pull registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.1
+    docker tag registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.1 k8s.gcr.io/kube-apiserver:v1.23.1
+    docker rmi registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.1
     
-    docker pull registry.aliyuncs.com/google_containers/kube-controller-manager:v1.21.2
-    docker tag registry.aliyuncs.com/google_containers/kube-controller-manager:v1.21.2 k8s.gcr.io/kube-controller-manager:v1.21.2
-    docker rmi registry.aliyuncs.com/google_containers/kube-controller-manager:v1.21.2
+    docker pull registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.1
+    docker tag registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.1 k8s.gcr.io/kube-controller-manager:v1.23.1
+    docker rmi registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.1
     
-    docker pull registry.aliyuncs.com/google_containers/kube-scheduler:v1.21.2
-    docker tag registry.aliyuncs.com/google_containers/kube-scheduler:v1.21.2 k8s.gcr.io/kube-scheduler:v1.21.2
-    docker rmi registry.aliyuncs.com/google_containers/kube-scheduler:v1.21.2
+    docker pull registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.1
+    docker tag registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.1 k8s.gcr.io/kube-scheduler:v1.23.1
+    docker rmi registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.1
     
-    docker pull registry.aliyuncs.com/google_containers/kube-proxy:v1.21.2
-    docker tag registry.aliyuncs.com/google_containers/kube-proxy:v1.21.2 k8s.gcr.io/kube-proxy:v1.21.2
-    docker rmi registry.aliyuncs.com/google_containers/kube-proxy:v1.21.2
+    docker pull registry.aliyuncs.com/google_containers/kube-proxy:v1.23.1
+    docker tag registry.aliyuncs.com/google_containers/kube-proxy:v1.23.1 k8s.gcr.io/kube-proxy:v1.23.1
+    docker rmi registry.aliyuncs.com/google_containers/kube-proxy:v1.23.1
     
-    docker pull registry.aliyuncs.com/google_containers/pause:3.4.1
-    docker tag registry.aliyuncs.com/google_containers/pause:3.4.1 k8s.gcr.io/pause:3.4.1
-    docker rmi registry.aliyuncs.com/google_containers/pause:3.4.1
+    docker pull registry.aliyuncs.com/google_containers/pause:3.6
+    docker tag registry.aliyuncs.com/google_containers/pause:3.6 k8s.gcr.io/pause:3.6
+    docker rmi registry.aliyuncs.com/google_containers/pause:3.6
     
-    docker pull registry.aliyuncs.com/google_containers/etcd:3.4.13-0
-    docker tag registry.aliyuncs.com/google_containers/etcd:3.4.13-0 k8s.gcr.io/etcd:3.4.13-0
-    docker rmi registry.aliyuncs.com/google_containers/etcd:3.4.13-0
+    docker pull registry.aliyuncs.com/google_containers/etcd:3.5.1-0
+    docker tag registry.aliyuncs.com/google_containers/etcd:3.5.1-0 k8s.gcr.io/etcd:3.5.1-0
+    docker rmi registry.aliyuncs.com/google_containers/etcd:3.5.1-0
     
-    docker pull coredns/coredns:1.8.0
-    docker tag coredns/coredns:1.8.0 k8s.gcr.io/coredns/coredns:v1.8.0
-    docker rmi coredns/coredns:1.8.0
+    docker pull coredns/coredns:1.8.6
+    docker tag coredns/coredns:1.8.6 k8s.gcr.io/coredns/coredns:v1.8.6
+    docker rmi coredns/coredns:1.8.6
     ```
 
 ## 主节点配置
-
-### 配置host
-
-+ 设置本机hostname
-
-  ```shell
-  # 设置本机hostname
-  $ hostnamectl set-hostname k8s-master01
-  $ hostnamectl set-hostname k8s-node01
-  $ hostnamectl set-hostname k8s-node02
-  # 查看hostname
-  $ hostname
-  ```
-
-+ 配置`IP Host`映射
-
-  ```shell
-  vi /etc/hosts
-  192.168.66.10 k8s-master01
-  192.168.66.11 k8s-node01
-  192.168.66.12 k8s-node02
-  ```
 
 
 ### 部署
@@ -315,15 +301,18 @@ $ systemctl enable kubelet && systemctl start kubelet
   localAPIEndpoint:
     # 修改为本机ip
     advertiseAddress: 192.168.10.8
+  nodeRegistration:
+    # 指定节点名称
+    name: k8s-master
   # 修改版本为执行 kubeadm config images list 后 kube-*包得版本
-  kubernetesVersion: 1.21.1
+  kubernetesVersion: 1.23.1
   networking:    
     # 指定flannel模型通信 pod网段地址,此网段和flannel网段一致  
     podSubnet: 10.244.0.0/16
     
-  # 指定使用ipvs进行通信
+  # x指定使用ipvs进行通信
   ---    
-  apiVersion: kubeadm.k8s.io/v1beta2
+  apiVersion: kubeadm.k8s.io/v1beta3
   kind: kubeProxyConfiguration
   featureGates:
     SupportIPVSProxyMode: true
@@ -378,6 +367,12 @@ $ systemctl enable kubelet && systemctl start kubelet
   $ kubectl create -f kube-flannel.yml
   ```
 
+### 允许主节点部署`pod`（可选）
+
+```
+kubectl taint nodes --all node-role.kubernetes.io/master-
+```
+
 ## 从节点加入集群
 
 ### 配置host
@@ -386,20 +381,9 @@ $ systemctl enable kubelet && systemctl start kubelet
 
   ```shell
   # 设置本机hostname
-  $ hostnamectl set-hostname k8s-master01
-  $ hostnamectl set-hostname k8s-node01
-  $ hostnamectl set-hostname k8s-node02
+  $ hostnamectl set-hostname k8s-01
   # 查看hostname
   $ hostname
-  ```
-
-+ 配置`IP Host`映射
-
-  ```shell
-  vi /etc/hosts
-  192.168.66.10 k8s-master01
-  192.168.66.11 k8s-node01
-  192.168.66.12 k8s-node02
   ```
 
 ### 加入集群
@@ -411,7 +395,229 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
         --discovery-token-ca-cert-hash sha256:6655246a71133a6d186378b4271918c0501d6605577cfbb0206fcb74e30419f2
 ```
 
-## UI安装
+### 重新生成加入集群命令
+
++ 生成`worker`节点加入集群命令
+
+  ```shell
+  # 主节点执行
+  $ kubeadm token create --print-join-command
+  ```
+
++ 生成`master`节点加入集群命令
+
+  ```shell
+  # 在上面命令基础上，还需要生成 certificate-key
+  $ kubeadm init phase upload-certs --experimental-upload-certs
+  # 将两步生成结果拼接起来使用
+  ```
+
+### 重新加入集群
+
++ 执行`kubeadm reset`重置节点状态
++ 原主节点执行`kubectl delete node xxx`删除节点
++ 然后正常加入新集群
+
+## NFS安装
+
++ 所有提供网络存储空间的设备按如下方式执行
+
+  ```sh
+  $ yum install nfs-utils -y
+  $ mkdir /opt/k8s/nfs
+  $ vim /etc/exports
+  /opt/k8s/nfs 192.168.30.0/24(rw,no_root_squash)
+  $ systemctl enable nfs & systemctl restart nfs
+  ```
+
++ 如需测试，使用网络存储空间的设备按如下方式执行
+
+  ```sh
+  $ yum install nfs-utils -y
+  $ mount -t nfs 192.168.30.27:/opt/k8s/nfs /opt/k8s/nfs
+  ```
+
+
+## helm安装
+
++ 从[github](https://github.com/helm/helm/releases)下载，解压后将`helm`文件移动到`usr/local/bin`目录下
+
+## Ingress安装
+
++ `helm`下载`chart`
+
+  ```
+  helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+  helm fetch ingress-nginx/ingress-nginx
+  ```
+
++ 替换镜像
+
+  + 在`values.yaml`文件中搜索`image:`关键字，找到要下载的镜像
+
+  + 本地开启`vpn`，`docker desktop`设置代理
+
+    ![image-20211220112343325](assets/image-20211220112343325.png) 
+
+  + 本地拉取镜像并上传至私有镜像仓库
+
+  + `values.yaml`中镜像地址、镜像名称、`Digest`修改为私有仓库信息
+
++ 修改`values.yaml`其他配置
+
+  ```yaml
+  service:
+   # ....省略一堆
+    type: NodePort		// 暴露service端口
+    nodePorts:
+      http: "32080"		// 指定端口
+      https: "32443"
+  ```
+
++ 部署
+
+  ```sh
+  # docker登陆私有仓库
+  $  docker login registry.cn-beijing.aliyuncs.com
+  Username: 434224591@qq.com
+  Password:
+  Login Succeeded
+  # 创建命名空间
+  $ kubectl create ns ingress-nginx
+  # 安装
+  $ helm install ingress-nginx . -n ingress-nginx
+  ```
+
+## dashboard安装
+
+### token登陆
+
++ 执行如下命令下载`chart`
+
+  ```sh
+  helm repo add k8s-dashboard https://kubernetes.github.io/dashboard
+  helm fetch k8s-dashboard/kubernetes-dashboard
+  ```
+
++ 解压后修改`values.yaml`
+
+  ```yaml
+  # 通过ingress暴露https服务
+  ingress:
+    enabled: true
+    className: "nginx"
+    hosts:
+      - k8s.xtbg.com
+    tls:
+      - secretName: kubernetes-dashboard-tls
+        hosts:
+          - k8s.xtbg.com
+  ```
+
++ 创建`secret`资源`kubernetes-dashboard-tls`
+
+  ```sh
+  openssl genrsa -out tls.key 1024
+  openssl req -new -x509 -key tls.key -out tls.crt -subj /C=CN/ST=Shanghai/L=Shanghai/O=DevOps/CN=k8s.xtbg.com
+  kubectl create secret tls kubernetes-dashboard-tls --cert=tls.crt --key=tls.key -n kube-system
+  ```
+
++ 使用如下命令部署应用
+
+  ```
+  helm install kubernetes-dashboard . -n kube-system
+  ```
+
++ 绑定权限
+
+  ```sh
+  # 安装后默认生成了名为 kubernetes-dashboard 的serviceAccount，和名为 clusterAdmin 的 clusterRole
+  # 为两者创建绑定关系
+  $ kubectl create clusterrolebinding dashboard-cluster-admin  --clusterrole=cluster-admin --serviceaccount=kube-system:kubernetes-dashboard
+  # 查看名为 kubernetes-dashboard 的 serviceAccount 关联的secret
+  $ kubectl describe serviceaccount kubernetes-dashboard -n kube-system
+  # 查看token; kubernetes-dashboard-token-wlsms 是上条命令查询结果的 Mountable secrets 属性的值
+  $ kubectl describe secret kubernetes-dashboard-token-wlsms -n kube-system
+  # 将查询出的token复制进登录页登陆
+  ```
+
+### 账号密码登陆（暂时不好使）
+
++ 执行如下命令下载`chart`
+
+  ```sh
+  helm repo add k8s-dashboard https://kubernetes.github.io/dashboard
+  helm fetch k8s-dashboard/kubernetes-dashboard
+  ```
+
++ 解压后修改`values.yaml`
+
+  ```yaml
+  # 1.使用basic认证
+  extraArgs:
+    - --authentication-mode=basic
+  # 2.通过ingress暴露https服务
+  ingress:
+    enabled: true
+    className: "nginx"
+    hosts:
+      - k8s.xtbg.com
+    tls:
+      - secretName: kubernetes-dashboard-tls
+        hosts:
+          - k8s.xtbg.com
+  ```
+
++ 创建`secret`资源`kubernetes-dashboard-tls`
+
+  ```sh
+  openssl genrsa -out tls.key 1024
+  openssl req -new -x509 -key tls.key -out tls.crt -subj /C=CN/ST=Shanghai/L=Shanghai/O=DevOps/CN=k8s.xtbg.com
+  kubectl create secret tls kubernetes-dashboard-tls --cert=tls.crt --key=tls.key -n kube-system
+  ```
+
++ 使用如下命令部署应用
+
+  ```
+  helm install kubernetes-dashboard . -n kube-system
+  ```
+
++ 配置`BASIC`认证账号密码文件
+
+  + 创建账号密码文件
+
+    ```
+    echo "admin,admin,1" > /etc/kubernetes/pki/basic_auth_file
+    ```
+
+  + 根据[文档](https://kubernetes.io/zh/docs/reference/access-authn-authz/abac/#%E7%AD%96%E7%95%A5%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F)创建策略文件
+
+  + 修改`/etc/kubernetes/manifests/kube-apiserver.yaml`
+
+    ```yaml
+    # 修改
+    - --authorization-mode=Node,RBAC
+    # 增加如下配置
+    - --token-auth-file=/etc/kubernetes/pki/basic_auth_file
+    - --authorization-policy-file=/etc/kubernetes/pki/abac_policy.jsonl
+    # 不要配置不允许匿名登陆，会导致存活指针无法探测，apiServer频繁重启
+    # - --anonymous-auth=false
+    ```
+
+    + 生效
+
+      ```
+      systemctl daemon-reload
+      systemctl restart kubelet
+      ```
+
+    + 每次修改`/etc/kubernetes/pki/basic_auth_file`文件需要重启`k8s`
+
++ 为`admin`用户绑定权限
+
+  ```
+  kubectl create clusterrolebinding login-on-dashboard-with-cluster-admin --clusterrole=cluster-admin --user=admin
+  ```
 
 # 资源控制器
 
@@ -489,7 +695,20 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
 ### StatefulSet
 
 + 用于部署有状态服务
-+ 有状态服务会有自己得数据卷，当pod宕机后，重启新的pod时，`statefulset`会让新的`pod`使用旧的数据卷
++ 有状态服务会有自己得数据卷，当pod宕机后，重启新的pod时，`statefulset`会让新的`pod`使用旧的数据卷，基于`pvc`实现
++ `pod`重建后，`ip`发生变化，但是`PodName`和`HostName`不会改变，基于`headless service`实现
++ 有序部署，有序扩展，有序收缩；按照预设顺序依次进行，后面的`pod`执行的前提是前面的`pod`必须是`running`状态；基于`init containers`实现
++ `statefulSet`管理的`pod`的名称规则：`StatefulSetName-N`；`N`表示第几个`pod`
++ 挂在`pv`方式
+  + 声明方式
+    + 手动创建`PVC`，使用`valumns`挂载`pvc`
+    + 所有`pod`绑定同一个`pvc`
+
+  + 模板方式
+    + 自动创建`pvc`，使用`volumeClaimTemplates`直接指定要使用的数据卷信息
+    + 自动创建的`pvc`命令规则：`volumeClaimTemplatesName-StatefulSetName-N`
+    + 每个`pod`绑定自己的`pvc`
+
 
 ### DaemonSet
 
@@ -559,7 +778,25 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
 ## 特点
 
 + 无状态服务得pod重建后，IP、hostname都会发生变化；有状态服务pod重建后，ip变化，hostname不变，用以找到之前得数据卷
-+ 
+
+## pod生命周期
+
+![image-20211218161909405](assets/image-20211218161909405.png) 
+
++ pod启动后，依次执行3个初始化容器（包含`pause`容器），直至执行成功再向下执行
+
++ 随后启动主容器
+
++ 主容器刚刚启动成功后，立即调用初始化钩子（`post start`）
+
++ 主容器退出前，执行终止前钩子（`pre stop`）
+
++ 在主容器存活期间，始终存在2个探针
+
+  + 就绪探针（`readiness probe`）
+  + 存活探针（`liveness probe`）
+
+  探针发现任何异常，则会按照重启策略重启pod
 
 # 组件
 
@@ -586,14 +823,189 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
     	release = stable
     ```
 
-## Service
+## Pod Template
+
++ `k8s`中所有资源都会以`yaml`配置文件的形式保存在`etcd`中
++ `pod`在`etcd`中的定义就是`pod template`
+
+## service
 
 + `service`就是同一服务创建得多个副本`pod`得集合，对外提供相同功能得服务
+
 + `service`是自己创建得
 
-# Service VIP
++ 配置文件
 
-## 定义
+  ```yaml
+  apiVersion: v1
+  kind: Service
+  # 元信息
+  metadata:
+    # 创建时间
+    creationTimestamp: "2021-07-09T01:14:31Z"
+    # 标签
+    labels:
+      run: myapp
+    # service 名称
+    name: myapp
+    # 命名空间
+    namespace: default
+    # 版本
+    resourceVersion: "469555"
+    # 唯一标识
+    uid: d39d224e-4f7e-41fd-a574-8d292f232367
+  # service定义信息
+  spec:
+    # serviceIP
+    clusterIP: 10.106.21.206
+    # 集群中所有serviceIP
+    clusterIPs:
+    - 10.106.21.206
+    # IP类型
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    # 端口，可多个
+    ports:
+      # service端口
+    - port: 30000
+      # 协议
+      protocol: TCP
+      # pod端口
+      targetPort: 80
+      # node端口，spec.type=NodePort时有效，
+      # 不指定nodePort时将在 30000~32767 之间随机1个端口
+      nodePort: 31000
+    # 选择器
+    selector:
+      run: myapp
+    sessionAffinity: None
+    # service 类型，可选值如下：
+    #   ClusterIP：默认；可在集群内使用 serviceIP访问服务
+    #   NodePort：将service端口映射到集群所有节点的宿主机端口上
+    #   LoaderBalancer：常见于云服务提供商，以后研究
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+  ```
+
+### headless service
+
++ 是1种特殊的`service`，需要将`spec.ClusterIP`设置为`None`
++ 不对外提供统一的`Service VIP`，不做负载均衡，将`POD`的`IP`直接暴露
++ 适用于有状态服务部署，如`redis`，客户端需要知道所有`redis`节点地址，在客户端做负载
+
+## ingress
+
++ `service`对外暴露端口很多时不便管理，可以借助`ingress`通过`域名+路径`减少对外暴露端口
+
++ `ingress`本质就是`nginx`的二次开发
+
++ [官网](https://kubernetes.github.io/ingress-nginx/) 
+
++ 安装参见[ingress安装](#ingress安装) 
+
++ 配置转发规则
+
+  将`ingress`配置文件应用后即可实现转发
+
+  + http
+
+    ```yaml
+    apiVersion: extensions/v1beta1
+    kind: Ingress
+    metadata:
+      name: nginx
+      namespace: default
+      labels:
+        app: nginx
+      annotations:    
+        nginx.ingress.kubernetes.io/rewrite-target: /
+    spec:
+      rules:
+      - host: ingress.kaikeba.com
+        http:      
+          paths:        
+          - path: /nginx          
+            backend:            
+              serviceName: nginx            
+              servicePort: 80       
+          - path: /tomcat          
+            backend:            
+              serviceName: tomcat            
+              servicePort: 8080
+    ```
+
+  + https
+
+    + 生成私钥
+
+      ```
+      openssl genrsa -out tls.key 1024
+      ```
+
+    + 自签发证书
+
+      ```
+      openssl req -new -x509 -key tls.key -out tls.crt -subj /C=CN/ST=Shanghai/L=Shanghai/O=DevOps/CN=ingress.kaikeba.com
+      ```
+
+    + 创建K8S使用的证书配置文件Secret
+
+      ```
+      kubectl create secret tls tomcat-ingress-secret --cert=tls.crt --key=tls.key
+      ```
+
+    + 创建带tls认证的tomcat后端服务
+
+      ```yaml
+      apiVersion: extensions/v1beta1
+      kind: Ingress
+      metadata:  
+        name: ingress-tomcat-tls  
+        namespace: default  
+        annotations:    
+          kubernetes.io/ingress.class: "nginx"  
+        labels:    
+          app: tomcat
+      spec:  
+        tls:  
+        - hosts:    
+          - tomcat.ikiwi.me    
+          secretName: tomcat-ingress-secret  
+        rules:  
+        - host: ingress.kaikeba.com 
+          http:      
+            paths:        
+            - backend:            
+              serviceName: tomcat            
+              servicePort: 8080
+      ```
+
+# 网络
+
+> + [全网最详细的 K8s Service 不能访问排查流程](https://zhuanlan.zhihu.com/p/161464741) 
+
+## 内部访问
+
++ 内部访问指的是`k8s`集群内访问
+
++ pod内：ip、service名称
+
+  > pod内能通过service名称访问就是因为`pod`内`resolv.conf`配置了`k8s`得`dns`服务地址
+
++ 宿主机：ip
+
+  > 宿主机如果想通过服务名称访问，需要在`resolv.conf`文件中增加`k8s`得`dns`服务地址，并修改`search`补全策略
+  >
+  > ```sh
+  > search default.svc.cluster.local svc.cluster.local cluster.local 7-1908-gnome
+  > nameserver 10.96.0.10	# k8s 的 dns 服务地址
+  > ```
+
+## Service VIP
+
+### 定义
 
 + `service VIP`是`k8s`为`service`资源对象提供得1个虚拟IP，有了它，可以将整个`Service`资源对象看作1个服务使用，屏蔽了`Service`内部`pod`副本得细节
 + 所有访问`service`资源对象得请求都需要经过`service VIP`，由它进行负载均衡并转发
@@ -601,23 +1013,21 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
 
 ## 负载均衡
 
++ 由于`pod`重建后`ip`和`hostname`均会发生变化，所以使用`nginx`在`pod`之间无法实现负载均衡，需要使用`service`实现；`nginx`可以在`service`之间实现负载均衡
+
 ![image-20210630155239170](assets/image-20210630155239170.png) 
 
 + `service VIP`提供了1个统一得`ip`及端口，所有对`service`资源对象得请求都要使用`service VIP`进行请求。再由`iptables`中配置得负载均衡策略进行请求转发
 + 如果`service`需要对外提供服务，则将物理机得1个端口映射到`Service VIP`得端口上，则可以通过访问物理机得`ip`及端口进行访问
 
-## 服务发现
+### 负载均衡策略
 
-+ `pod`宕机后，`k8s`会重启新的`pod`，`ip`和`hostname`会发生变化。此时每个`node`节点中得`kube-proxy`会监听到这些变化，并上传到`api server`，改写`Service VIP`中`endpoints`资源对象得信息
-
-# 负载均衡策略
-
-## `userspace`（已过时）
+#### `userspace`（已过时）
 
 + 当请求到达`service VIP`时，随机选择1个`node`节点，交由该节点得`kube-proxy`负责负载均衡
 + 由于`kube-proxy`负责得事情太多，性能较差，这种方案已被取代
 
-## `iptables`
+#### `iptables`
 
 ![image-20210701090509748](assets/image-20210701090509748.png) 
 
@@ -627,7 +1037,7 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
   + 随机
   + 轮询（默认）
 
-## `ipvs`
+#### `ipvs`
 
 + 就是将上图的`iptables`换成`ipvs`
 + `ipvs`是`iptables`的扩展版本，支持更多负载策略
@@ -639,44 +1049,2158 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
   + `sed`：最短切望延迟
   + `np`：无需队列等待
 
+## 服务发现
+
++ `pod`宕机后，`k8s`会重启新的`pod`，`ip`和`hostname`会发生变化。此时每个`node`节点中得`kube-proxy`会监听到这些变化，并上传到`api server`，改写`Service VIP`中`endpoints`资源对象得信息
+
+## DNS
+
++ `master`节点运行了2个`dns`相关的`pod`，用于==在`pod`内部==通过`service`名称进行访问
+
+### `resolv.conf`
+
+正确的域名解析顺序是:
+
++ 查找`/etc/hosts`
++ 根据`nameserver`使用`resolv.conf`配置得DNS服务器查找域名
++ 如果根据`nameserver`查找不到域名就进行`search`补全，重新走1~2步
+
+### dnsPolicy
+
+每个`Pod`所使用的`DNS`策略，是通过`pod.spec.dnsPolicy`字段设置的，共有4种`DNS`策略：
+
++ `ClusterFirst`：
+
+  默认策略，表示使用集群内部的`CoreDNS`来做域名解析，`Pod`内`/etc/resolv.conf`文件中配置的`nameserver`是集群的`DNS`服务器，即`kube-dns`的地址。
+
++ `Default`：
+
+  `Pod`直接继承集群`node`节点的域名解析配置，也就是，`Pod`会直接使用宿主机上的`/etc/resolv.conf`文件内容。
+
++ `None`：
+
+  忽略`k8s`集群环境中的`DNS`设置，Pod会使用其`dnsConfig`字段所提供的`DNS`配置，`dnsConfig`字段的内容要在创建`Pod`时手动设置好。
+
++ `ClusterFirstWithHostNet`：如果`Pod`的`hostNetwork`字段设置为`true`，则表示`Pod`与宿主机共用同一个网络命名空间，此时`Pod`的`DNS`策略默认使用的是`Default`，不能访问集群内的服务。若希望`Pod`在`host`网络模式下还能访问集群内的服务，可以将`dnsPolicy`设置成`ClusterFirstWithHostNet`
+
+## 外网访问
+
++ 编辑`service`配置文件，将`spec.type`设置为`NodePort`
++ 这样设置后，会将`service`的端口与每台`Node`节点物理机端口进行绑定，访问任意`Node`节点的该端口均可以访问该服务
+
 # 指令
 
-+ 指定部署镜像
+## kubectl get
+
+### 说明
+
++ 查看资源列表
+
++ 指令
 
   ```shell
-  # kubectl run DEPLOYMENT_NAME --image=URL --port=PORT
-  $ kubectl run myapp --image=ikubernetes/myapp --port=80
-
-+ 查看pod
-
-  ```shell
-  $ kubectl get pod DEPLOYMENT_NAME [-n NAMESPACE]
+  kubectl get TYPE [NAME_PREFIX] [OPTIONS]
   ```
 
-+ 查看Pod详情
++ 参数解析
+
+  + `TYPE`：资源类型，可选值：
+    + `pod`等同于`pods`
+    + `svc`
+    + `node`、
+    + `namespace`
+    + 资源控制器类型，如：`deployment`
+    + `cm/configmap`
+  + `NAME_PREFIX`：资源名称前缀
+  + `OPTIONS`：可选项
+    + `-A`：
+      + 全称：`--all-namespaces=true`
+      + 列出所有命名空间得资源
+    + `-o`
+      + 指定输出格式
+      + 可选值
+        + `wide`：显示更多列
+        + `json`：`json`格式输出
+    + `-n`
+      + 指定命名空间
+    + `--show-labels`
+      + 显示所有`label`信息
+    + `-l`
+      + 指定标签
+
+### 示例
+
++ 查看`node`列表
 
   ```shell
-  $ kubectl describe pod DEPLOYMENT_NAME [-n NAMESPACE]
+  kubectl get node
   ```
 
-+ 删除pod
++ 查看`pod`列表
 
   ```shell
-  $ kubectl delete pod DEPLOYMENT_NAME [-n NAMESPACE]
+  kubectl get pod
   ```
 
++ 查看`service`列表
+
+  ```shell
+  kubectl get svc
+  ```
+
+## kubectl describe
+
+### 说明
+
++ 查看资源详情
+
++ 命令
+
+  ```shell
+  kubectl describe TYPE NAME_PREFIX [OPTIONS]
+  ```
+
++ 参数解析
+
+  + `TYPE`：资源类型，可选值：
+    + `pod`等同于`pods`
+    + `svc`
+    + `node`、
+    + `namespace`
+    + 资源控制器类型，如：`deployment`
+    + `cm/configmap`
+  + `NAME_PREFIX`：资源名称前缀
+  + `OPTIONS`：可选项
+    + `-n`
+      + 指定命名空间
+
+### 示例
+
++ 查看`node`详情
+
+  ```shell
+  kubectl describe node k8s-01
+  ```
+
++ 查看`pod`详情
+
+  ```shell
+  kubectl describe pod myapp
+  ```
+
+## kubectl delete
+
+### 说明
+
++ 删除资源
+
++ 命令
+
+  ```shell
+  kubectl delete TYPE NAME_PREFIX [OPTIONS]
+  ```
+
++ 参数解析
+
+  + `TYPE`：资源类型，可选值：
+    + `pod`等同于`pods`
+    + `svc`
+    + `node`、
+    + `namespace`
+    + 资源控制器类型，如：`deployment`
+  + `NAME_PREFIX`：资源名称前缀
+  + `OPTIONS`：可选项
+    + `-n`
+      + 指定命名空间
+    + `--all`
+      + 删除所有
+
+### 示例
+
++ 删除`pod`
+
+  ```shell
+  kubectl delete pod myapp
+  ```
+
++ 删除`node`
+
+  ```shell
+  kubectl delete node k8s-01
+  ```
+
+## kubectl run
+
+### 说明
+
++ 指令部署镜像
+
++ 命令
+
+  ```shell
+  kubectl run POD_NAME --image=URL --port=PORT
+  ```
+
++ 参数解析
+
+  + `POD_NAME`：`pod`名称
+  + `URL`：`docker`中镜像路径
+  + `PORT`：端口
+  + `--expose=BOOL`：默认false；为`true`自动创建`service`
+
++ 注意
+
+  + `1.17`版本之前，会自动创建`deployment`、`RS`资源对象
+  + `1.18`版本之后，只会创建`pod`
+
+### 示例
+
++ 简单部署
+
+  ```shell
+  kubectl run myapp --image=ikubernetes/myapp:v1 --port=80
+  ```
+
+## kubectl scale
+
+### 说明
+
++ 扩容指令
+
++ 命令
+
+  ```shell
+  kubectl scale TYPE NAME --replicas=COUNT
+  ```
   
++ 参数解析
+
+  + `TYPE`：资源控制器类型
+  + `NAME`：资源控制器实例名称
+  + `COUNT`：副本数量
+
+### 示例
+
++ 扩容`deployment`资源对象
+
+  ```
+  kubectl scale deployment myapp --replicas=2
+  ```
+
+## kubectl autoscale
+
+### 说明
+
++ 用于根据pod资源使用情况自动扩容
+
++ 该命令会自动创建`hpa`控制器监控`rs`
+
++ 命令
+
+  ```
+  autoscale (-f FILENAME | TYPE NAME | TYPE/NAME) [--min=MINPODS] --max=MAXPODS [--cpu-percent=CPU] [flags]
+  ```
+
+  + `-f`：指定配置文件关联的资源
+  + `TYPE NAME | TYPE/NAME`：资源类型，这里仅支持：
+    + `deployment`
+    + `rs`
+  + `--min`：最少pod数
+  + `--max`：最多pod数
+  + `--cpu-percent`：cpu使用率达到多少开始扩容
+
+## kubectl exec
+
+### 说明
+
++ 在`pod`外部执行`pod`内命令，类似`docker exec`
+
++ 命令
+
+  ```shell
+  kubectl exec POD -- COMMOND [OPTIONS]
+  ```
+
++ 参数解析
+
+  + `POD`：`pod`名称
+  + `COMMOND`：要执行得命令
+  + `OPTIONS`：可选项
+    + `-it`：以交互方式进入容器
+
+### 示例
+
++ 登陆`pod`
+
+  ```shell
+  kubectl exec -it [POD_NAME] -- sh
+  ```
+
+## kubectl expose
+
+### 说明
+
++ 创建`service`，将`service`的端口转发到`pod`容器的端口上
+
++ 命令
+
+  ```shell
+  kubectl expose TYPE NAME --port=HOST_PORT --target-port=POD_PORT
+  ```
+
++ 参数解析
+
+  + `TYPE`：资源控制器类型
+  + `NAME`：资源控制器实例名称
+  + `HOST_PORT`：`service`端口，范围`30000~32767`
+  + `POD_PORT`：`pod`端口
+
+### 示例
+
++ 创建`service`，将`deployment`资源控制器下`pod`的80 端口映射到`service`的30000端口
+
+  ```shell
+  $ kubectl expose deployment myapp --port=30000 --target-port=80
+  ```
+
+## kubectl edit
+
+### 说明
+
++ 编辑资源得配置文件
+
++ 命令
+
+  ```shell
+  kubectl edit TYPE NAME
+  ```
+
++ 参数解析
+
+  + `TYPE`：资源类型，可选值：
+    + `pod`等同于`pods`
+    + `svc`
+    + `node`、
+    + `namespace`
+    + 资源控制器类型，如：`deployment`
+  + `NAME`：资源控制器实例名称
+
+### 示例
+
++ 编辑`pod`配置文件
+
+  ```shell
+  kubectl edit pod myapp
+  ```
+
+
+## kubectl set
+
+### 说明
+
++ 用于更改已经存在的资源
+
++ 命令
+
+  ```shell
+  kubectl set SUBCOMMAND [options]
+  ```
+
++ 参数解析
+
+  + `SUBCOMMAND`：可选命令如下：
+    + `env`：修改资源对象的`pod template`的环境变量
+    + `image`：更新资源对象的`pod template`的镜像
+    + `resources`：更新资源对象的`pod template`的`requests`或`limits`
+      + `requests`：最少占用资源（cpu、内存）
+      + `limits`：最大占用资源
+    + 
+
+### 示例
+
+```sh
+$ kubectl set image deployment myapp myapp=ikubernetes/myapp:v2
+```
+
+## kubectl create
+
+### deployment
+
+#### 说明
+
++ 用于创建`deployment`资源对象
+
++ 命令
+
+  ```
+  kubectl create deployment NAME --image=IMAGE -- [COMMAND] [ARGS...] [OPTIONS]
+  ```
+
+  + `NAME`：资源对象名称
+  + `IMAGE`：镜像地址
+  + `COMMAND`：镜像启动可选命令
+  + `ARGS`：镜像启动可选参数
+  + `OPTIONS`：可选项
+    + `-r/--replicas=1`：指定副本数量
+    + `--port`：指定端口
+
+#### 示例
+
++ 使用`myapp`镜像创建`deployment`资源对象
+
+  ```
+  kubectl create deployment myapp --image=ikubernetes/myapp:v1 --port=80
+  ```
+
+
+### configmap
+
++ 用于创建`configmap`
+
++ 命令
+
+  ```
+  kubectl create configmap NAME [--from-file=[key=]source] [--from-literal=key1=value1] [option]
+  ```
+
+  + `NAME`：`configmap`名称
+  + `--from-file`：从文件或目录创建
+  + `--from-literal`：直接指定`key=value`创建
+
+## kubectl label
+
+### 说明
+
++ 为资源对象打标签
+
++ 命令
+
+  ```
+  kubectl label TYPE NAME K=V ...
+  ```
+
+  + `TYPE`：资源类型，可选值：
+    + `pod`等同于`pods`
+    + `svc`
+    + `node`、
+    + `namespace`
+    + 资源控制器类型，如：`deployment`
+  + `NAME`：资源控制器实例名称
+  + `K=V`：标签键值对
+
+## kubectl explain
+
+### 说明
+
++ 查看资源清单
+
++ 命令
+
+  ```
+  kubectl explain TYPE
+  ```
+
+  + `TYPE`：资源类型，可选值：
+    + `pod`等同于`pods`
+    + `svc`
+    + `node`、
+    + `namespace`
+    + 资源控制器类型，如：`deployment`
+
+## kubectl apply
+
+### 说明
+
++ 使用资源配置文件
+
++ 命令
+
+  ```sh
+  kubectl apply OPTION
+  ```
+
+  + `OPTIONS`：可选项
+    + `-f`：指定文件
+
+### 示例
+
+```sh
+$ kubectl apply -f app-deployment.yaml
+```
+
+## kubectl rolling-update
+
++ 滚动更新
+
++ 命令
+
+  ```
+  kubectl rolling-update OLD_CONTROLLER_NAME ([NEW_CONTROLLER_NAME] --image=NEW_CONTAINER_IMAGE | -f NEW_CONTROLLER_SPEC)
+  ```
+
+  + 
 
 # 镜像部署
 
-## 指令
+## 指令方式
 
 + 部署指令
 
   ```shell
-  # kubectl run [deploymentName] --image=[url] --port=[port]
-  $ kubectl run myapp --image=ikubernetes/myapp --port=80
+  $ kubectl run myapp --image=ikubernetes/myapp:v1 --port=80
+  ```
+  
++ 指令方式部署应用时
+
+  + `1.17`版本之前，会自动创建`deployment`、`RS`资源对象
+  + `1.18`版本之后，只会创建`pod`
+
+## 更新镜像
+
++ 使用`kubectl set image`命令更新镜像
+
+## yaml配置文件方式
+
++ 资源清单：就是配置文件
++ 参见[笔记](.\课件\day06-k8s实战-指令、yaml部署\note\day06_指令、yaml部署.md) 
++ 可以使用`---`将多个配置文件内容写在同一个文件中
+
+### 配置说明
+
+#### deployment配置
+
+```yaml
+# deployment相关
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deploy
+  namespace: default
+# rs相关
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+      release: stabel
+# pod相关
+  template:
+    metadata:
+      labels:
+        app: myapp
+        release: stabel
+        env: test
+    spec:
+      containers:
+      - name: myapp
+        image: nginx:v1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 80
+```
+
+#### service配置
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: myweb
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: myapp
+    release: stabel
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+```
+
+#### pod配置
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+ name: init-pod
+ labels:
+   app: myapp
+spec:
+ containers:
+ - name: myapp
+   image: hub.kaikeba.com/library/myapp:v1
+```
+
+#### RS配置
+
+```yaml
+apiVersion: extensions/v1beta1 
+kind: ReplicaSet 
+metadata:
+  name: frontend 
+spec:
+  replicas: 3
+  selector:
+    matchLabels: 
+      tier: frontend 
+  template:
+    metadata:
+      labels:
+        tier: frontend
+    spec:
+      containers:
+        - name: Java-nginx
+          image: hub.kaikeba.com/library/myapp:v1
+          env:
+            - name: GET_HOSTS_FROM 
+              value: dns
+          ports:
+            - containerPort: 80
+```
+
+#### DaemonSet配置
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: my-deamon
+  namespace: default
+  labels: 
+    app: daemonset
+spec:
+  selector:
+    matchLabels:
+      app: my-daemonset
+  template:
+    metadata:
+      labels:
+        app: my-daemonset
+    spec:
+      containers:
+      - name: daemon-app
+        image: hub.kaikeba.com/library/myapp:v1
+```
+
+#### job配置
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job-demo
+spec:
+  template:
+    metadata:
+      name: job-demo
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: counter
+        image: busybox
+        command:
+        - "bin/sh"
+        - "-c"
+        - "for i in 9 8 7 6 5 4 3 2 1; do echo $i; done"
+```
+
+#### CronJob配置
+
+```yaml
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: cronjob-demo
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: hello
+            image: busybox
+            args:
+            - "bin/sh"
+            - "-c"
+            - "for i in 9 8 7 6 5 4 3 2 1; do echo $i; done"
+```
+
+#### statefulSet配置
+
+##### 声明方式
+
+```yaml
+# 定义 headless service
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  ports:
+  - port: 80
+    name: web
+  clusterIP: None
+  selector:
+    app: nginx
+---
+# 定义 steatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  # 这里需要指定 service 的name
+  serviceName: "nginx"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      # pod超时时间，默认30s，超过这个时间强制结束老的pod
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: nginx
+        image: k8s.gcr.io/nginx-slim:0.8
+        ports:
+        - containerPort: 80
+          name: web
+        volumeMounts:
+        - name: www
+          mountPath: /usr/share/nginx/html
+      volumes:
+      - name: www
+        persistentVolumeClaim:
+          claimName: my-pvc
+---
+# 定义 pvc
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi  
+```
+
+##### 模板方式
+
+```yaml
+# 定义 headless service
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  labels:
+    app: nginx
+spec:
+  ports:
+  - port: 80
+    name: web
+  clusterIP: None
+  selector:
+    app: nginx
+---
+# 定义 statefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  # 这里需要指定 service 的name
+  serviceName: nginx
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      # pod超时时间，默认30s，超过这个时间强制结束老的pod
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: nginx
+        image: hub.kaikeba.com/java12/myapp:v1
+        ports:
+        - containerPort: 80
+          name: web
+        volumeMounts:
+        - name: www
+          mountPath: /usr/share/nginx/html
+  # 不使用手动创建的pvc，直接指定要使用的资源，自动创建pvc
+  volumeClaimTemplates:
+  - metadata:
+      name: www
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+```
+
+### 使用配置文件
+
++ 使用`kubectl apply`命令生效配置文件
+
+# 数据存储
+
+## valumn数据卷
+
++ 主要分为4类：
+
+  + 云盘：如亚马逊云盘
+  + 网络存储：如NFS
+  + 本地存储：本地目录
+  + `k8s`自身资源：如：configmap、secret
+
++ 都有哪些
+
+  ![image-20211218235913023](assets/image-20211218235913023.png)
+
+### emptyDir
+
++ 创建1个空卷，挂在到`pod`
+
++ 会跟随`pod`一并删除
+
++ 应用场景：`pod`之间数据共享
+
++ 示例
+
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: test-pod1
+  spec:
+    # 1. 声明数据卷
+    volumes:
+    - name: cache-volume
+      emptyDir: {}
+    containers:
+    - image: hub.kaikeba.com/library/myapp:v1
+      name: test-container
+      # 2. 挂载数据卷
+      volumeMounts:
+      - mountPath: /cache
+        name: cache-volume
+  ---
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: test-pod2
+  spec:
+    # 1. 声明数据卷
+    volumes:
+    - name: cache-volume
+      emptyDir: {}
+    containers:
+    - image: hub.kaikeba.com/library/myapp:v1
+      name: test-container
+      # 2. 挂载数据卷
+      volumeMounts:
+      - mountPath: /cache
+        name: cache-volume
+    - name: test-1
+      image: hub.kaikeba.com/library/busybox:v1
+      command: ["/bin/sh","-c","sleep 3600s"]
+      imagePullPolicy: IfNotPresent
+      # 2. 挂载数据卷
+      volumeMounts:
+      - mountPath: /cache
+        name: cache-volume
+  ```
+
+### hostpath
+
++ 将`node`的文件或路径挂在到`pod`
+
++ 删除`pod`，数据卷不会丢失
+
++ 示例
+
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: test-pod
+  spec:
+    containers:
+    - image: hub.kaikeba.com/library/myapp:v1
+      name: test-container
+      volumeMounts:
+      - mountPath: /cache
+        name: cache-volume
+    volumes:
+    - name: cache-volume
+      hostPath:
+        path: /data
+        type: Directory
+  ```
+
++ `type`可选值
+
+  ![image-20211219001743110](assets/image-20211219001743110.png) 
+
+### NFS网络存储
+
++ `NFS`用于多台服务器共享存储，一台主机的文件修改会自动同步到其他主机
+
++ k8s使用nfs的目的是，将pod内数据卷的修改同步到``nfs`网络存储设备上，实现持久化
+
++ 按照[NFS安装](#NFS安装)进行安装
+
++ 示例
+
+  ```yaml
+  apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: nfs
+  spec:
+    replicas: 3
+    template:
+      metadata:
+        labels:
+          app: nginx
+      spec:
+        containers:
+        - name: nginx
+          image: hub.kaikeba.com/library/myapp:v1
+          volumeMounts:
+          - name: wwwroot
+            mountPath: /usr/share/nginx/html
+          ports:
+          - containerPort: 80
+        volumes:
+        - name: wwwroot
+          nfs:
+            server: 192.168.66.13
+            path: /opt/k8s/nfs/wwwroot
   ```
 
   
 
+## configMap配置
+
+### 介绍
+
++ 存储在`etcd`中的配置资源，用于存储配置信息，类似于配置中心，所有相关pod都会从中读取配置
++ 注入的方式
+  + 挂载存储卷
+  + 传递变量
++ 属于名称空间级别，不能跨名称空间使用
++ ConfigMap内容修改后，对应的pod必须重启或者重新加载配置（支持热更新的应用，不需要重启）
+
+### 创建configMap
+
+#### 使用目录创建
+
++ 将需要使用的多个配置文件存放在1个目录中
+
++ 使用如下命令创建
+
+  ```sh
+  kubectl create cm game-config --from-file=/root/properties
+  ```
+
+#### 使用文件创建
+
++ `--from-file`指定文件路径
+
+  ```
+  kubectl create cm game-config --from-file=/root/properties/game.properties
+  ```
+
+#### 文字创建
+
++ 命令中直接指定配置
+
+  ```
+  kubectl create cm game-config --from-literal=testkey=testvalue
+  ```
+
+#### yaml创建（常用）
+
++ 前面所有创建方式最终都会以`yaml`方式保存，可以直接指定`yaml`文件进行创建
+
+  ```yaml
+  apiVersion: v1
+  data:
+    game.properties: |
+      enemies=aliens
+      lives=3
+      enemies.cheat=true
+      enemies.cheat.level=noGoodRotten
+      secret.code.passphrase=UUDDLRLRBABAS
+      secret.code.allowed=true
+      secret.code.lives=30
+    ui.properties: |
+      color.good=purple
+      color.bad=yellow
+      allow.textmode=true
+      how.nice.to.look=fairlyNice
+  kind: ConfigMap
+  metadata:
+    name: game-config
+    namespace: default
+  ```
+
+  使用`kubectl apply -f`应用配置文件
+
+### 应用configmap
+
+#### 准备测试配置
+
+```yaml
+# 创建configMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: special-config
+  namespace: default
+data:
+  special.how: very
+  special.type: charm
+  
+# 创建第二个configMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-config
+  namespace: default
+data:
+  log_level: INFO
+```
+
+#### 作为环境变量使用
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+spec:
+  containers:
+    - name: test-container
+      image: hub.kaikeba.com/library/myapp:v1 
+      command: ["/bin/sh", "-c", "env"]
+      env:
+        - name: SPECIAL_LEVEL_KEY 
+          # 1:仅使用1个值
+          valueFrom:
+            configMapKeyRef: 
+              name: special-config  # configmap名称
+              key: special.how      # comfigmap中要引用变量的key
+      # 2. 整个文件引用
+      envFrom:
+        - configMapRef: 
+            name: env-config 		# configmap名称
+  restartPolicy: Never
+```
+
+#### 作为命令行参数使用
+
++ 先将配置作为环境变量使用，再在命令行参数中通过`${}`方式使用环境变量
+
+#### 通过数据卷挂在到pod中
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod3
+spec:
+  # 1. 声明数据卷
+  volumes: 
+    - name: config-volume
+      configMap:				# 从configmap中引入
+        name: env-config
+  containers:
+    - name: test-container
+      image: ikubernetes/myapp:v1
+      command: [ "/bin/sh", "-c", "sleep 600s" ]
+      # 2. 挂载数据卷
+      volumeMounts:
+        - name: config-volume	# 必须使用volumns中声明的name值
+          mountPath: /etc/config # 挂载到容器的/etc/config目录下
+  restartPolicy: Never
+```
+
++ 容器启动后，在`/etc/config`目录下会将每个配置的`key`以文件（其实是软连接）的形式存储，文件内容就是对应的`value`
+
+  ```sh
+  # ls /etc/config
+  log_level
+  # cat /etc/config/log_level
+  INFO
+  ```
+
+### 热更新
+
++ 将`configmap`中的值修改后，最长10s后，`pod`中配置就会同步过去
+
+### 典型应用
+
++ [nginx外部配置文件](https://blog.csdn.net/weixin_47415962/article/details/116003059) 
+
+## secret配置
+
+### 介绍
+
++ 具备[configmap配置](# configMap配置)的所有特性
++ 同样以键值方式存储，使用`Base64`进行加密
++ 通过环境变量或者挂在数据卷方式使用
++ 可以避免敏感信息暴露在镜像或者`Pod Sec`中
+
+### 类型
+
+#### Service Account
+
++ 用来访问`kubernetes API`，控制访问`pod`的安全问题
++ 由`Kubernetes`自动创建
++ 自动挂载到`Pod`的`/run/secrets/kubernetes.io/serviceaccount`目录中.
+
+#### opaque
+
++ 用来存储用户自己的敏感信息（如：密钥）
+
++ 值必须使用`Base64`加密后字符串
+
+  ```sh
+  $ echo -n '123456' | base64
+  MTIzNDU2
+  ```
+
+  加载到`pod`内会自动解密
+
++ 创建配置
+
+  ```yaml
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: mysecret
+  type: Opaque
+  data:
+   password: YWJjZGVmZ2g=
+   username: YWRtaW4=
+  ```
+
++ 使用
+
+  + 挂载数据卷方式
+
+    ```yaml
+    apiVersion: v1
+    kind: pod
+    metadata:
+     name: secret-test
+     labels:
+       name: secret-test
+    spec:
+      # 1. 声明数据卷
+      volumes:
+      - name: secrets
+        secret:
+          secretName: mysecret
+      containers:
+      - image: hub.kaikeba.com/java12/myapp:v1
+        name: db
+        # 2. 挂在数据卷
+        volumeMounts:
+        - name: secrets
+          mountPath: "/etc/secrets"
+          readOnly: true
+    ```
+
+  + 作为环境变量
+
+    ```yaml
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    metadata:
+     name: secret-deployment
+    spec:
+      replicas: 2
+      template:
+        metadata:
+          labels:
+            app: pod-deployment
+        spec:
+          containers:
+          - name: pod-1
+            image: hub.kaikeba.com/java12/myapp:v1
+            ports:
+            - containerPort: 80
+            env:
+            - name: TEST_USER
+              # 1. 单个配置引用
+              valueFrom:
+                secretKeyRef:
+                  name: mysecret	# secret名称
+                  key: username		# 配置的key
+            # 2. 整个文件引用
+            envFrom:
+            - secretRef: 
+                name: mysecret 		# secret名称
+    ```
+
+## 持久化（PV&PVC）
+
+### 介绍
+
++ PV
+  + 持久卷
+  + 管理员预先设定好的一个个的持久卷资源
+  + 底层是NFS这样的网络存储资源
++ PVC
+  + 持久卷声明
+  + 用户使用持久卷的请求
++ pvc如何匹配pv
+  + 标签选择器
+  + 读写模式
+    + ReadWriteOnce：单节点模式
+    + ReadWriteMany：多节点模式
+  + 高速存储/低俗存储
+  + 存储大小
++ `PV`与`PVC`是一一对应的
+
+### 示例
+
++ 创建2个`PV`
+
+  ```yaml
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: my-pv1
+  spec:
+    capacity:
+      storage: 5Gi
+    accessModes:
+      - ReadWriteMany
+    nfs:
+      path: /opt/k8s/nfs/demo1
+      server: 192.168.66.13
+  ---
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: my-pv2
+  spec:
+    capacity:
+      storage: 10Gi
+    accessModes:
+      - ReadWriteMany
+    nfs:
+      path: /opt/k8s/nfs/demo2
+      server: 192.168.66.13
+  ```
+
++ `pod`中通过`pvc`使用`pv`
+
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: my-pod
+  spec:
+    containers:
+    - name: nginx
+      image: nginx:latest
+      ports:
+      - containerPort: 80
+      volumeMounts:
+        - name: www
+          mountPath: /usr/share/nginx/html
+    volumes:
+      - name: www
+        persistentVolumeClaim:
+          claimName: my-pvc
+  ---
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: my-pvc
+  spec:
+    accessModes:
+      - ReadWriteMany
+    resources:
+      requests:
+        storage: 5Gi
+  ```
+
+### storageClass
+
+#### 说明
+
++ 用于根据`pvc`的需求自动创建`pv`，不需要管理员维护
+
++ 使用步骤
+
+  + 创建一个可用的NFS服务器
+  + 创建`Service Account`.这是用来管控`NFS provisioner`在k8s集群中运行的权限
+  + 创建`StorageClass`负责建立`PVC`并调用`NFS provisioner`进行预定的工作,并让`PV`与`PVC`建立管理
+  + 创建`NFS provisioner`.有两个功能：
+    + 在`NFS`共享目录下创建挂载点(volume)
+    + 建立`PV`并将`PV`与`NFS`的挂载点建立关联  
+
++ 图示
+
+  ![image-20211219224543417](assets/image-20211219224543417.png) 
+
+#### 创建`storageClass`
+
+##### 方法一
+
++ 结论
+
+  经测试，后续创建`pvc`时会报错，不建议使用
+
+  原因是`provisioner`镜像问题，需要换成`nfs-subdir-external-provisioner/nfs-subdir-external-provisioner`
+
+  ```
+  unexpected error getting claim reference: selfLink was empty, can't make reference
+  ```
+
++ 创建`ServiceAccount`
+
+  ```yaml
+  # 创建 ServiceAccount
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: nfs-client-provisioner
+    namespace: default
+  ---
+  # 创建 ClusterRole
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: nfs-client-provisioner-runner
+  rules:
+    - apiGroups: [""]
+      resources: ["persistentvolumes"]
+      verbs: ["get", "list", "watch", "create", "delete"]
+    - apiGroups: [""]
+      resources: ["persistentvolumeclaims"]
+      verbs: ["get", "list", "watch", "update"]
+    - apiGroups: ["storage.k8s.io"]
+      resources: ["storageclasses"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: [""]
+      resources: ["events"]
+      verbs: ["create", "update", "patch"]
+    - apiGroups: [""]
+      resources: ["endpoints"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+  ---
+  # 创建 ClusterRoleBinding，绑定 ClusterRole 和 ServiceAccount
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: run-nfs-client-provisioner
+  subjects:
+    - kind: ServiceAccount
+      name: nfs-client-provisioner
+      namespace: default
+  roleRef:
+    kind: ClusterRole
+    name: nfs-client-provisioner-runner
+    apiGroup: rbac.authorization.k8s.io
+  ---
+  # 创建 Role 
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: leader-locking-nfs-client-provisioner
+    namespace: default
+  rules:
+    - apiGroups: [""]
+      resources: ["endpoints"]
+      verbs: ["get", "list", "watch", "create", "update", "patch"]
+  ---
+  # 创建 RoleBinding，绑定 Role 和 ServiceAccount
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: leader-locking-nfs-client-provisioner
+  subjects:
+    - kind: ServiceAccount
+      name: nfs-client-provisioner
+      namespace: default
+  roleRef:
+    kind: Role
+    name: leader-locking-nfs-client-provisioner
+    apiGroup: rbac.authorization.k8s.io
+  ```
+
+  + `ClusterRole`>`Role`
+  + `Role`：单个`namespace`范围内
+  + `ClusterRole`：
+    + 所有`namespace`
+    + 集群级别，可管理所有权限
+
++ 创建`storageClass`
+
+  ```yaml
+  apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    name: managed-nfs-storage
+  provisioner: qgg-nfs-storage
+  parameters:  
+     archiveOnDelete: "false"
+  ```
+
++ 创建`NFS provisioner`
+
+  + 实际是运行了1个插件`pod`，用来管理挂载点
+
+  ```yaml
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: nfs-client-provisioner
+    labels:
+      app: nfs-client-provisioner
+    namespace: default
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app: nfs-client-provisioner
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app: nfs-client-provisioner
+      spec:
+        # 使用 service account
+        serviceAccountName: nfs-client-provisioner
+        containers:
+          - name: nfs-client-provisioner
+            image: quay.io/external_storage/nfs-client-provisioner:latest
+            volumeMounts:
+              - name: nfs-client-root
+                mountPath: /persistentvolumes
+            env:
+              - name: PROVISIONER_NAME
+                value: qgg-nfs-storage
+              - name: NFS_SERVER
+                value: 192.168.66.13
+              - name: NFS_PATH  
+                value: /opt/k8s/nfs
+        volumes:
+          - name: nfs-client-root
+            nfs:
+              server: 192.168.66.13
+              path: /opt/k8s/nfs
+  ```
+
+##### 方法二
+
++ [github](https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner/releases)下载`chart`包并解压
+
++ 修改`values.yaml`
+
+  ```yaml
+  # 指定镜像
+  image:
+    repository: willdockerhub/nfs-subdir-external-provisioner
+  # nfs信息
+  nfs:
+    server:10.133.206.49
+    path: /data/k8s/nfs
+  # storageClass信息
+  storageClass:
+    defaultClass: true  # 根据需求决定是否需要设置为默认
+  ```
+
++ 安装
+
+  ```sh
+  helm install nfs-subdir-external-provisioner . -n storage-class
+  ```
+
+#### 测试
+
++ 手动创建`pvc`测试
+
+  ```yaml
+  # 创建pvc
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: test-claim
+    # 指定 storageClass
+    annotations:
+      volume.beta.kubernetes.io/storage-class: "managed-nfs-storage"
+  spec:
+    accessModes:
+      - ReadWriteMany
+    resources:
+      requests:
+        storage: 1Mi
+  
+  # 创建pod   
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: test-pod
+  spec:
+    containers:
+    - name: test-pod
+      image: busybox:1.24
+      command:
+        - "/bin/sh"
+      args:
+        - "-c"
+        - "touch /mnt/SUCCESS && exit 0 || exit 1"
+      volumeMounts:
+        - name: nfs-pvc
+          mountPath: "/mnt"
+    restartPolicy: "Never"
+    # valumns挂在pvc
+    volumes:
+      - name: nfs-pvc
+        persistentVolumeClaim:
+          claimName: test-claim
+  ```
+
++ 自动创建`pvc`测试
+
+  ```yaml
+  # 创建 headless service
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: nginx-headless
+    labels:
+      app: nginx
+  spec:
+    ports:
+    - port: 80
+      name: web
+    clusterIP: None 
+    selector:
+      app: nginx
+  ---
+  # 创建 statefulSet
+  apiVersion: apps/v1beta1
+  kind: StatefulSet
+  metadata:
+    name: web
+  spec:
+    serviceName: "nginx"
+    replicas: 2
+    template:
+      metadata:
+        labels:
+          app: nginx
+      spec:
+        containers:
+        - name: nginx
+          image: ikubernetes/myapp:v1
+          ports:
+          - containerPort: 80
+            name: web
+          volumeMounts:
+          - name: www
+            mountPath: /usr/share/nginx/html
+    # 模板方式创建pvc
+    volumeClaimTemplates:
+    - metadata:
+        name: www
+        # 指定 storageClass
+        annotations:
+          volume.beta.kubernetes.io/storage-class: "managed-nfs-storage"
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+  ```
+
+# harbor
+
+## 搭建
+
++ 安装`docker-compose`
+
++ 从[github](https://github.com/goharbor/harbor/releases)下载离线版本安装文件
+
++ 解压后，将`harbor.yml.tmpl`更名为`harbor.yml`，并进行编辑
+
+  + 如果可以使用内网ip通过浏览器访问
+
+    ```sh
+    #将hostname更改为本机IP
+    #[此处可以写域名]  
+    hostname = 192.168.20.7
+    
+    # 屏蔽如下配置
+    # https:
+      # https port for harbor, default is 443
+    #   port: 443
+      # The path of cert and key files for nginx
+    #   certificate: /your/certificate/path
+    #   private_key: /your/private/key/path
+    
+    #这行指定的是登录harbor的登录名及密码
+    #默认用户为“admin”，密码为“Harbor12345”
+    harbor_admin_password = Harbor12345   
+    ```
+
+  + 如果不可以使用内网ip通过浏览器访问
+
+    ```sh
+    http:
+      # 修改为合适的端口
+      port: 1880
+    
+    # 屏蔽如下配置
+    # https:
+      # https port for harbor, default is 443
+    #   port: 443
+      # The path of cert and key files for nginx
+    #   certificate: /your/certificate/path
+    #   private_key: /your/private/key/path
+    
+    # 打开如下配置，并配置为nginx代理的域名及端口
+     external_url: https://reg.mydomain.com:8433
+    
+    #这行指定的是登录harbor的登录名及密码
+    #默认用户为“admin”，密码为“Harbor12345”
+    harbor_admin_password = Harbor12345   
+    ```
+
+    + 此时需要启动nginx服务进行代理，代理地址仅允许域名+端口，不能带路径
+    + 此时内网ip或外网路径均可使用
+    + nginx需要在`http{}`中配置`client_max_body_size 500m;`
+
++ 安装
+
+  ```bash
+  ./install.sh
+  ```
+
++ docker配置镜像仓库地址
+
+  在`/etc/docker/daemon.json`文件中增加如下配置
+
+  ```
+  "insecure-registries": ["https://hub.kaikeba.com"]
+  ```
+
+  生效配置并重启docker（参见docker教程）
+
+## 更新配置
+
+```sh
+$ cd /root/harbor
+$ docker-compose down
+$ vim harbor.yml  # 更新配置
+$ ./prepare
+$ docker-compose up -d
+```
+
+## 重启
+
+```sh
+$ cd /root/harbor
+$ docker-compose down
+$ docker-compose up -d
+```
+
+# helm
+
+## 介绍
+
++ 软件包管理工具
+
+  部署1个应用时，往往需要很多资源对象，`helm`用于将这些资源对象作为1个软件包统一管理
+
++ 相关组件及概念
+
+  + `chart`：`helm`的软件包格式，一系列用于描述资源的文件
+  + `release`：`chart`在`k8s`集群部署后成为`release`
+  + `repository`：`chart`的仓库
+  + `helm`：命令行工具，用于本地开发管理`chart`
+  + `tiller`：
+    + `helm`的服务端，用于接收并处理`helm`的请求，并于`k8s`交互
+    + `3.0`版本之后去掉了`tiller`，`helm`直接与`k8s`通信
+
++ 架构图
+
+  ![image-20211221001812815](assets/image-20211221001812815.png) 
+
+  + `3.0`版本后去掉了`tiller`
+
+## chart结构
+
++ `charts`：依赖的`chart`
++ `chart.yml`：`chart`的基本信息
++ `templates`：用于存放资源文件
+  + `deployment.yaml`
+  + `ingress.yaml`
+  + `service.yaml`
+  + `_helpers.tpl`：定义一些可重用的模板片断，此文件中的定义在任何资源定义模板中可用
+  + `NOTE.txt`：帮助信息
++ `values.yaml`：包含了必要的值定义（默认值）, 用于存储 templates 目录中模板文件中用到变量的值
+
+## 使用
+
++ 创建并进入`hello-helm`目录
+
++ 编辑`chart.yaml`文件
+
+  ```yaml
+  name: hello-world
+  version: 1.0.0
+  ```
+
++ 编辑`values.yaml`
+
+  ```yaml
+  image:  
+    repository: hub.kaikeba.com/java12/myapp  
+    tag: 'v1'
+  ```
+
++ 创建`template`目录并编辑资源文件
+
+  + 以`deployment.yaml`为例演示如何使用`values`
+
+    ```yaml
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    metadata:  
+      name: hello-world
+    spec:  
+      replicas: 1  
+      template:    
+        metadata:      
+          labels:        
+            app: hello-world    
+        spec:      
+          containers:      
+          - name: hello-world        
+            image: {{ .Values.image.repository }}:{{ .Values.image.tag }}        
+            ports:        
+            - containerPort: 8080          
+              rotocol: TCP
+    ```
+
+## 命令
+
++ `helm install RELEASE_NAME .`
+
+  以当前目录作为`chart`目录进行部署
+
+  + `--set`：指定键值
+  + `--values`：指定`values.yaml`文件
+  + `--dry-run --debug `：打印出生成的清单文件内容，而不执行部署
+
++ `helm ls`
+
+  列出已部署的`release`
+
+  + `--deleted`：列出已删除`release`
+
++ `helm status RELEASE_NAME`
+
+  查看`release`状态
+
++ `helm delete RELEASE_NAME`
+
+  删除该`release`关联的资源
+
+  + `--purge`：`release`记录一并删除
+
++ `helm rollback RELEASE_NAME REVISION_NUMBER`
+
+  `release`版本回退
+
++ `helm upgrade RELEASE_NAME .`
+
+  以当前目录作为`chart`目录进行更新
+
+  + `--set`：指定键值
+  + `--values`：指定`values.yaml`文件
+  + `-f`：指定更新某文件
+
+## 换源
+
+```sh
+helm repo remove stable
+helm repo add stable https://apphub.aliyuncs.com
+helm repo update 
+```
+
+# 使用示例
+
+## mysql
+
++ 下载`chart`并解压
+
+  ```
+  helm fetch stable/mysql
+  ```
+
++ 修改`values.yaml`
+
+  ```sh
+  # 设置root密码
+  root:
+    password: xtbg.ca
+  # 不部署从机
+  replication:
+    enabled: false
+  # 指定 storageClass 自动生成pv
+  master:
+    persistence:
+      storageClass: "nfs-client-49"
+  # 暴露端口
+  service:
+    type: NodePort
+  ```
+
++ 部署
+
+  ```
+  helm install mysql8 . -n zhiding2
+  ```
+
+## redis
+
++ 下载`chart`并解压
+
+  ```
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm fetch bitnami/redis
+  ```
+
++ 修改`values.yaml`
+
+  ```yaml
+  # 单机部署
+  architecture: standalone
+  # 不需要密码验证
+  auth:
+    enabled: false
+  
+  master:
+    # 关闭持久化
+    persistence:
+      enabled: false
+    # 暴露端口
+    service:
+      type: NodePort
+  ```
+
++ 部署
+
+  ```
+  helm install redis . -n zhiding2
+  ```
+
+## mongodb
+
++ 下载`chart`并解压
+
+  ```
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm fetch bitnami/mongodb
+  ```
+
++ 本地翻墙下载`docker`镜像`bitnami/mongodb:4.4.11-debian-10-r0`，上传至私服
+
++ 修改`values.yaml`
+
+  ```yaml
+  # 修改镜像地址为私服地址
+  image:
+    registry: registry.cn-beijing.aliyuncs.com
+    repository: publix/bitnami-mongodb
+    tag: 4.4.11-debian-10-r0
+  # 单机模式下需要使用StatefulSet
+  useStatefulSet: StatefulSet
+  # 设置root密码
+  auth:
+    rootPassword: "xtbg.ca"
+  # 暴露端口
+  service:
+    type: NodePort
+  # 指定storageClass
+  persistence:
+    storageClass: "nfs-client-49"
+  ```
+
++ 登陆私服
+
+  ```
+  docker login registry.cn-beijing.aliyuncs.com
+  ```
+
++ 部署
+
+  ```
+  helm install mongodb . -n zhiding2
+  ```
+
+## minio
+
++ 本地下载`chart`并上传解压
+
+  ```
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm fetch bitnami/minio
+  ```
+
++ 本地下载`docker`镜像并上传至私服
+
++ 修改`values.yaml`
+
+  ```yaml
+  # 修改镜像地址
+  image:
+    registry: registry.cn-beijing.aliyuncs.com
+    repository: publix/bitnami-minio
+    tag: 2021.12.29-debian-10-r0
+  # 设置密码
+  auth:
+    rootUser: admin
+    rootPassword: "xtbg.ca.xtbg"		# 必须不少于8位，否则pod起不来
+  # 暴露端口
+  service:
+    type: NodePort
+  # 数据卷
+  persistence:
+    storageClass: "nfs-client-49"
+  ```
+
++ 登陆私服
+
+  ```
+  docker login registry.cn-beijing.aliyuncs.com
+  ```
+
++ 部署
+
+  ```
+  helm install minio . -n zhiding2
+  ```
+
+## nacos
+
++ 本地克隆[nacos-k8s](https://github.com/nacos-group/nacos-k8s.git)，并将`helm`目录打包上传至服务器
+
++ 修改`values.yaml`
+
+  ```yaml
+  # s
+  nacos:
+    storage:
+  #    type: embedded
+      type: mysql
+      db:
+        host: mysql8.zhiding
+        name: nacos
+        port: 3306
+        username: root
+        password: xtbg.ca
+  ```
+
++ 修改`template/comfigmap.yaml`
+
+  ```yaml
+  mysql.port: {{ .port | default 3306}}
+  # 修改为
+  mysql.port: {{ quote .port | default 3306}}
+  # 否则会报类型转换错误
+  ```
+
++ 在`README.md`中找到数据库脚本，初始化数据库
+
++ 启动`nacos`
+
+  ```
+  helm install nacos . -n zhiding2
+  ```
+
+## openvpn
+
++ 修改并应用`yaml`
+
+  ```yaml
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: openvpn
+    namespace: ihr-sit
+  spec:
+    type: NodePort
+    selector:
+      app: openvpn
+      release: stabel
+    ports:
+    - name: http
+      port: 194
+      targetPort: 194
+      nodePort: 31194
+  ---
+  # deployment相关
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: openvpn
+    namespace: ihr-sit
+  # rs相关
+  spec:
+    serviceName: openvpn
+    replicas: 1
+    selector:
+      matchLabels:
+        app: openvpn
+        release: stabel
+  # pod相关
+    template:
+      metadata:
+        labels:
+          app: openvpn
+          release: stabel
+      spec:
+        containers:
+        - name: openvpn
+          image: kylemanna/openvpn:2.4
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', ' sysctl net.ipv6.conf.all.disable_ipv6=0 ; 
+                                  sysctl net.ipv6.conf.default.forwarding=1 ; 
+                                  sysctl net.ipv6.conf.all.forwarding=1 ; 
+                                  sed -i "s/port 1194/port \$OVPN_PORT/g" /usr/local/bin/ovpn_genconfig;
+                                  while true; do sleep 30; done;']
+          ports:
+          - name: http
+            containerPort: 194
+          volumeMounts:
+          - name: vc-name
+            mountPath: /etc/openvpn
+          securityContext:
+            privileged: true
+            capabilities:
+              add: # 添加
+              - NET_ADMIN
+    volumeClaimTemplates:
+    - metadata:
+        name: vc-name
+        # 指定 storageClass
+        annotations:
+          volume.beta.kubernetes.io/storage-class: "alibabacloud-cnfs-nas"
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 1Gi
+  ```
+
++ 登陆pod
+
+  + 指定公网ip生成配置文件
+
+    ```
+    ovpn_genconfig -u tcp://8.130.12.136:194 \
+    	-s '21.0.0.0/24' \
+    	-p 'route 172.31.96.0 255.255.240.0' \
+    	-p 'route 192.168.0.0 255.255.0.0' \
+    	-p 'route 10.0.0.0 255.255.255.0' \
+    	-d -c -D
+    ```
+
+  + 初始化密钥文件
+
+    ```
+    ovpn_initpki
+    ```
+
+  + （可选）修改服务端配置`/etc/openvpn/openvpn.conf`
+
+    ```
+    # 记住ip
+    ifconfig-pool-persist ipp.text
+    # 1g
+    duplicate-cn
+    ```
+
+  + 启动服务
+
+    ```
+    nohup ovpn_run &
+    ```
+
+  + 生成客户端证书
+
+    ```
+    easyrsa build-client-full shuyan-client nopass
+    ovpn_getclient shuyan-client > shuyan-client.ovpn
+    ```
+
++ 配置静态路由`vpn`子网网段指向`openvpn`对应得`pod`
+
+  + 阿里云`专有网络vpc`的交换机配置静态路由，`vpn`子网网段指向`openvpn`所在`node`节点
+
+  + `openvpn`所在`node`节点主机内添加静态路由，`vpn`子网网段指向`openvpn`对应`pod`
+
+    ```
+    route add -net 21.0.0.0/24 gw 172.31.96.45
+    ```
+
+# 集成prometheus
+
+以后再学
+
+# 踩坑
+
+## no route to host
+
+如果你遇到 `Pod `无法解析 `DNS`，`coredns `日志显示 `no route to host`，尝试以下命令
+
+```shell
+systemctl stop kubelet
+systemctl stop docker
+iptables --flush
+iptables -tnat --flush
+systemctl start kubelet
+systemctl start docker
+```
+
+## 默认不允许`master`节点部署pod
+
+```sh
+# 允许
+$ kubectl taint nodes --all node-role.kubernetes.io/master-
+# 禁止
+$ kubectl taint nodes k8s node-role.kubernetes.io/master=true:NoSchedule
+```
+
+# 问题
+
++ 如何创建service
++ service对外提供服务时是所有节点都暴露端口吗

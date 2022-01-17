@@ -2,29 +2,29 @@
 
 ## 内核空间、用户空间
 
-![image-20210124202331895](assets/image-20210124202331895.png) 
++ 操作系统将内存划分为2部分：内核空间、用户空间；
+  + 硬件只能由内核程序进行操作，并且内核空间的内存是被保护起来的
+  + 用户应用程序使用用户空间内存，对内核或硬件的操作都必须通过内核提供的接口进行操作
++ IO指的是磁盘和网络的读写操作
++ 下图展示的是数据由应用程序从硬盘读取，并且写入到网卡的过程
 
-+ 内核空间：操作系统缓冲区
-+ 用户空间：应用程序缓冲区
-+ IO指的是磁盘和网络的IO操作
+![image-20210124202331895](assets/image-20210124202331895.png) 
 
 ## IO模型类型
 
-+ 同步
++ 同步/异步
 
-  调用者主动查看IO操作完成结果
+  重点是消息的通知机制
 
-+ 异步
+  + 同步：调用者主动查看IO操作完成结果
+  + 异步：被调用者完成IO操作后主动通知调用者
 
-  被调用者完成IO操作后主动通知调用者
++ 阻塞/非阻塞
 
-+ 阻塞
+  重点是线程等待消息通知时的状态
 
-  调用者在1个IO操作未完成前一致挂起，不进行其他操作
-
-+ 非阻塞
-
-  调用者在1个IO操作未完成前可以进行其他操作
+  + 阻塞：调用者在1个IO操作未完成前一直挂起，不进行其他操作
+  + 非阻塞：调用者在1个IO操作未完成前可以进行其他操作
 
 + 多路复用
 
@@ -111,7 +111,63 @@
 
 ## Buffer
 
-+ `Buffer`接口是个顶级
++ `Buffer`是个抽象类，有很多实现类，最常用的就是`ByteBuffer`
+
++ `Buffer`其实就是使用几个变量维护一个数组，关键变量如下：
+
+  + capacity （容量）
+
+    数组总大小
+
+  + position （游标位置)
+
+    读写位置
+
+  + limit (末尾限定符)
+
+    + 读模式：已写入数据最大位置
+    + 写模式：与`capacity `相等
+
+  + mark（标记）
+
+    用于对位置进行标记，标记后可以使用`reset`方法，使`position `重新回到该位置
+
++ demo
+
+  ```java
+  public class BasicBuffer {
+      public static void main(String[] args) {
+          IntBuffer intBuffer = IntBuffer.allocate(10);
+          intBuffer.put(10);
+          intBuffer.put(101);
+          System.err.println("Write mode: ");
+          System.err.println("\tCapacity: " + intBuffer.capacity());
+          System.err.println("\tPosition: " + intBuffer.position());
+          System.err.println("\tLimit: " + intBuffer.limit());
+          
+          // 转换为d
+          intBuffer.flip();
+          System.err.println("Read mode: ");
+          System.err.println("\tCapacity: " + intBuffer.capacity());
+          System.err.println("\tPosition: " + intBuffer.position());
+          System.err.println("\tLimit: " + intBuffer.limit());    
+      }
+  }
+  
+  /**
+   * 输出结果：
+   * Write mode:
+   * 		Capacity:10
+   * 		Position:2
+   * 		Limit:10
+   * Read mode:
+   * 		Capacity:10
+   * 		Position:0
+   * 		Limit:2
+   */
+  ```
+
+  
 
 
 

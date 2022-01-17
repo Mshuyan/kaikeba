@@ -1,0 +1,40 @@
+一、k8s相关指令 ------ 容器编排（操作的最小单元是POD）
+# 查看k8s帮助文档 ----- 查询所有的指令
+	* kubectl --help
+# 查询节点信息（状态）
+	* kubectl get node -- 查询集群节点的信息
+	* kubectl get node -o wide -- 查询节点的详细信息
+	* kubectl get node == kubectl get nodes
+	注意：查询节点信息，Status:Ready 表示集群节点运行ok。
+# 查询pod（k8s最小的操作单元）对象指令
+	* kubectl get pod -- 查询pod信息，没有指定命令空间，默认查询的命名空间是 default
+	* kubectl get pod -o wide --查询pod的详细信息
+	* kubectl get pod -o wide -n kube-system --查询指定命名空间下的pod,pod是通过命名空间进行隔离。
+	注意：kube-system 系统命名空间，此空间内运行的是k8s系统所需的pod.(scheduler,etcd，apiserver..)
+# 查询 ReplicaSet -- 副本控制器对象
+	* kubectl get rs
+	* kubectl get rs -o wide
+# 查询 Deployment -- 查询部署对象
+	* kubectl get deployment
+	* kubectl get deployment -o wide
+# 查询service
+	* kubectl get svc
+	* kubectl get svc -o wide
+
+需求1：创建一个pod,并且在这个pod中部署一个nginx容器？？？
+	* kubectl run my-nginx --image=nginx:v1 --port=80
+
+需求2：目前只有一个pod,现在对现有pod服务进行扩容？？
+	* kubectl scale deployment/my-nginx --replicas=3 -- 设置副本数量为3
+	* 另一种写法：kubectl scale deployment my-nginx --replicas=3
+	* 删除pod: kubectl delete pod pod名称
+	* 删除所有pod: kubectl delete pod --all 
+
+需求3：外网如何访问？？
+	* kubectl expose deployment my-nginx --port=3000 --target-port=80 -- 创建一个service
+	* kubectl edit svc my-nginx  -- 编辑service服务的yaml配置文件
+总结：精细化编排容器
+	1、 指令
+	2、yaml
+	3、可视化图形化界面：按钮 ---- 操作颗粒度较粗
+
