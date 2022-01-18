@@ -3172,6 +3172,104 @@ helm repo update
     route add -net 21.0.0.0/24 gw 172.31.96.45
     ```
 
+## seata
+
++ nacos配置
+
+  + 创建`seata`命名空间
+
+  + 添加`seataServer.properties`配置，内容为[config.txt](https://github.com/seata/seata/blob/1.4.0/script/config-center/config.txt)内容，进行适当修改，主要为以下部分
+
+    ```properties
+    store.mode=db
+    store.db.url=jdbc:mysql://rm-0jlh1c0p8ad955p32o.mysql.rds.aliyuncs.com:3306/seata?useUnicode=true&rewriteBatchedStatements=true
+    store.db.user=ihr_db_admi
+    store.db.password=1qaz@WS
+    ```
+
++ 创建`seata`服务端数据库，并执行[sql脚本](https://github.com/seata/seata/blob/1.4.0/script/server/db/mysql.sql) 
+
++ `yaml`部署
+
+  ```yaml
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: seata-server
+    namespace: ihr-sit
+    labels:
+      k8s-app: seata-server
+  spec:
+    type: ClusterIP
+    ports:
+      - port: 8091
+        targetPort: 8091
+        protocol: TCP
+        name: http
+    selector:
+      k8s-app: seata-server
+  ---
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: seata-server
+    namespace: ihr-sit
+    labels:
+      k8s-app: seata-server
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        k8s-app: seata-server
+    template:
+      metadata:
+        labels:
+          k8s-app: seata-server
+      spec:
+        containers:
+          - name: seata-server
+            image: docker.io/seataio/seata-server:latest
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: SEATA_CONFIG_NAME
+                value: file:/root/seata-config/registry
+            ports:
+              - name: http
+                containerPort: 8091
+                protocol: TCP
+            volumeMounts:
+              - name: seata-config
+                mountPath: /root/seata-config
+        volumes:
+          - name: seata-config
+            configMap:
+              name: seata-server-config
+  ---
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: seata-server-config
+  data:
+    registry.conf: |
+      registry {
+          type = "nacos"
+          nacos {
+            application = "seata-server"
+            serverAddr = "nacos-cs"
+            namespace = “seata”
+          }
+      }
+      config {
+        type = "nacos"
+        nacos {
+          serverAddr = "nacos-cs"
+          group = "SEATA_GROUP"
+          namespace = “seata”
+          dataId: "seataServer.properties"
+        }
+      }
+  ```
+
 # 集成prometheus
 
 以后再学
