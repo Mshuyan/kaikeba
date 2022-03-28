@@ -114,7 +114,6 @@
 
     ```shell
     $ ntpdate cn.pool.ntp.org
-    $ timedatectl set-local-rtc
     ```
 
   + 重启服务器，使依赖时间得服务应用新的时间
@@ -255,21 +254,21 @@ $ systemctl enable kubelet && systemctl start kubelet
   + 从国内镜像仓库下载，并重命名
 
     ```
-    docker pull registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.1
-    docker tag registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.1 k8s.gcr.io/kube-apiserver:v1.23.1
-    docker rmi registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.1
+    docker pull registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.4
+    docker tag registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.4 k8s.gcr.io/kube-apiserver:v1.23.4
+    docker rmi registry.aliyuncs.com/google_containers/kube-apiserver:v1.23.4
     
-    docker pull registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.1
-    docker tag registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.1 k8s.gcr.io/kube-controller-manager:v1.23.1
-    docker rmi registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.1
+    docker pull registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.4
+    docker tag registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.4 k8s.gcr.io/kube-controller-manager:v1.23.4
+    docker rmi registry.aliyuncs.com/google_containers/kube-controller-manager:v1.23.4
     
-    docker pull registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.1
-    docker tag registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.1 k8s.gcr.io/kube-scheduler:v1.23.1
-    docker rmi registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.1
+    docker pull registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.4
+    docker tag registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.4 k8s.gcr.io/kube-scheduler:v1.23.4
+    docker rmi registry.aliyuncs.com/google_containers/kube-scheduler:v1.23.4
     
-    docker pull registry.aliyuncs.com/google_containers/kube-proxy:v1.23.1
-    docker tag registry.aliyuncs.com/google_containers/kube-proxy:v1.23.1 k8s.gcr.io/kube-proxy:v1.23.1
-    docker rmi registry.aliyuncs.com/google_containers/kube-proxy:v1.23.1
+    docker pull registry.aliyuncs.com/google_containers/kube-proxy:v1.23.4
+    docker tag registry.aliyuncs.com/google_containers/kube-proxy:v1.23.4 k8s.gcr.io/kube-proxy:v1.23.4
+    docker rmi registry.aliyuncs.com/google_containers/kube-proxy:v1.23.4
     
     docker pull registry.aliyuncs.com/google_containers/pause:3.6
     docker tag registry.aliyuncs.com/google_containers/pause:3.6 k8s.gcr.io/pause:3.6
@@ -283,6 +282,16 @@ $ systemctl enable kubelet && systemctl start kubelet
     docker tag coredns/coredns:1.8.6 k8s.gcr.io/coredns/coredns:v1.8.6
     docker rmi coredns/coredns:1.8.6
     ```
+
+### 自动更新`ntpd`时间
+
+```
+$ timedatectl set-ntp yes
+$ systemctl stop ntpd
+$ ntpd -gq
+$ systemctl start ntpd
+$ systemctl enable ntpd
+```
 
 ## 主节点配置
 
@@ -305,12 +314,14 @@ $ systemctl enable kubelet && systemctl start kubelet
     # 指定节点名称
     name: k8s-master
   # 修改版本为执行 kubeadm config images list 后 kube-*包得版本
-  kubernetesVersion: 1.23.1
+  kubernetesVersion: 1.23.4
   networking:    
+    # 指定flannel模型通信 service 网段地址
+    serviceSubnet: 20.96.0.0/16
     # 指定flannel模型通信 pod网段地址,此网段和flannel网段一致  
-    podSubnet: 10.244.0.0/16
+    podSubnet: 20.244.0.0/16
     
-  # x指定使用ipvs进行通信
+  # 指定使用ipvs进行通信
   ---    
   apiVersion: kubeadm.k8s.io/v1beta3
   kind: kubeProxyConfiguration
@@ -361,10 +372,12 @@ $ systemctl enable kubelet && systemctl start kubelet
 
 + 无法直接下载，需要在浏览器访问[flannel插件配置文件](https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml)并下载，上传至服务器
 
++ 修改`pod`地址池与`kubeadm-config.yaml`文件保持一致
+
 + 部署`flannel`
 
   ```shell
-  $ kubectl create -f kube-flannel.yml
+  $ kubectl create -f kube-flannel.yaml
   ```
 
 ### 允许主节点部署`pod`（可选）
@@ -466,27 +479,108 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
 + 修改`values.yaml`其他配置
 
   ```yaml
+    dnsPolicy: ClusterFirstWithHostNet
+    hostNetwork: true # 使用 80/443端口，必须使用主机网络
+    hostPort:
+      enabled: true
+    publishService:
+      enabled: false
+    kind: DaemonSet # 每个节点部署1g
   service:
-   # ....省略一堆
-    type: NodePort		// 暴露service端口
-    nodePorts:
-      http: "32080"		// 指定端口
-      https: "32443"
+   enabled: false
   ```
 
 + 部署
 
   ```sh
-  # docker登陆私有仓库
-  $  docker login registry.cn-beijing.aliyuncs.com
-  Username: 434224591@qq.com
-  Password:
-  Login Succeeded
-  # 创建命名空间
-  $ kubectl create ns ingress-nginx
   # 安装
-  $ helm install ingress-nginx . -n ingress-nginx
+  $ helm install ingress-nginx . -n kube-system
   ```
+
++ 配置自定义`default-backend`
+
+  + 目的是解决`Host头攻击漏洞`
+
+  + 创建自定义`default-backend`服务
+
+    ```yaml
+    kind: ConfigMap
+    apiVersion: v1
+    metadata:
+      name: default-backend-nginx
+      namespace: kube-system
+    data:
+      default.conf: |
+        server {
+          listen 80;
+          server_name _;
+          
+          return 403;
+        }
+    ---
+    kind: Service
+    apiVersion: v1
+    metadata:
+      name: my-default-backend
+      namespace: kube-system
+    spec:
+      ports:
+        - name: http
+          protocol: TCP
+          port: 80
+          targetPort: 80
+      selector:
+        app: my-default-backend
+      type: ClusterIP
+    ---
+    kind: Deployment
+    apiVersion: apps/v1
+    metadata:
+      name: my-default-backend
+      namespace: kube-system
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: my-default-backend
+      template:
+        metadata:
+          labels:
+            app: my-default-backend
+        spec:
+          volumes:
+            - name: default-backend-nginx
+              configMap:
+                name: default-backend-nginx
+          containers:
+            - name: my-default-backend
+              image: nginx
+              ports:
+                - name: http
+                  containerPort: 80
+                  protocol: TCP
+              volumeMounts:
+                - name: default-backend-nginx
+                  mountPath: /etc/nginx/conf.d
+              imagePullPolicy: IfNotPresent
+    ```
+
+  + 编辑`DaemonSet/ingress-nginx-controller`配置，增加如下选项
+
+    ```yaml
+    	spec:
+          containers:
+            - name: controller
+              args:
+                # 增加这行
+                - '--default-backend-service=kube-system/my-default-backend'
+    ```
+
+  + 编辑`configmap/ingress-nginx-controller`新增如下这行
+
+    ```yaml
+    custome-http-errors: 403,404,500,502,503,504
+    ```
 
 ## dashboard安装
 
@@ -912,52 +1006,51 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
   + http
 
     ```yaml
-    apiVersion: extensions/v1beta1
     kind: Ingress
+    apiVersion: networking.k8s.io/v1
     metadata:
-      name: nginx
-      namespace: default
+      name: health-app
+      namespace: health-tst
       labels:
-        app: nginx
-      annotations:    
+        app: health-app
+      annotations:
+        kubernetes.io/ingress.class: nginx
         nginx.ingress.kubernetes.io/rewrite-target: /
     spec:
       rules:
-      - host: ingress.kaikeba.com
-        http:      
-          paths:        
-          - path: /nginx          
-            backend:            
-              serviceName: nginx            
-              servicePort: 80       
-          - path: /tomcat          
-            backend:            
-              serviceName: tomcat            
-              servicePort: 8080
+        - host: dingappk8s.faw-vw.com
+          http:
+            paths:
+              - pathType: ImplementationSpecific
+                backend:
+                  service:
+                    name: health-app
+                    port:
+                      number: 80
     ```
-
+    
   + https
-
+  
     + 生成私钥
-
+  
       ```
       openssl genrsa -out tls.key 1024
       ```
-
+  
     + 自签发证书
-
+  
       ```
       openssl req -new -x509 -key tls.key -out tls.crt -subj /C=CN/ST=Shanghai/L=Shanghai/O=DevOps/CN=ingress.kaikeba.com
       ```
-
+  
     + 创建K8S使用的证书配置文件Secret
-
+  
       ```
       kubectl create secret tls tomcat-ingress-secret --cert=tls.crt --key=tls.key
       ```
-
+  
     + 创建带tls认证的tomcat后端服务
-
+  
       ```yaml
       apiVersion: extensions/v1beta1
       kind: Ingress
@@ -2537,7 +2630,7 @@ spec:
 + 安装
 
   ```sh
-  helm install nfs-subdir-external-provisioner . -n storage-class
+  helm install nfs-subdir-external-provisioner . -n k
   ```
 
 #### 测试
@@ -2867,7 +2960,7 @@ helm repo update
 
 + 修改`values.yaml`
 
-  ```sh
+  ```yaml
   # 设置root密码
   root:
     password: xtbg.ca
@@ -2881,12 +2974,24 @@ helm repo update
   # 暴露端口
   service:
     type: NodePort
+  # 设置时区
+  timezone: Asia/Shanghai
   ```
 
++ 配置时区
+
+  + `bitnami/mysql:8.8.18`中配置`value.yaml`
+  
+    ```
+      extraEnvVars:
+        - name: TZ
+          value: Asia/Shanghai
+    ```
+  
 + 部署
 
   ```
-  helm install mysql8 . -n zhiding2
+  helm install mysql5-7 . -n zhiding2
   ```
 
 ## redis
@@ -3057,15 +3162,14 @@ helm repo update
     name: openvpn
     namespace: ihr-sit
   spec:
-    type: NodePort
+    type: ClusterIP
     selector:
       app: openvpn
       release: stabel
     ports:
     - name: http
-      port: 194
-      targetPort: 194
-      nodePort: 31194
+      port: 2194
+      targetPort: 2194
   ---
   # deployment相关
   apiVersion: apps/v1
@@ -3091,15 +3195,15 @@ helm repo update
         containers:
         - name: openvpn
           image: kylemanna/openvpn:2.4
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ['sh', '-c', ' sysctl net.ipv6.conf.all.disable_ipv6=0 ; 
                                   sysctl net.ipv6.conf.default.forwarding=1 ; 
                                   sysctl net.ipv6.conf.all.forwarding=1 ; 
-                                  sed -i "s/port 1194/port \$OVPN_PORT/g" /usr/local/bin/ovpn_genconfig;
-                                  while true; do sleep 30; done;']
+                                  sed -i "s/port 1194/port \$OVPN_PORT/g" /usr/local/bin/ovpn_genconfig ;
+                                  while true; do sleep 30; done; ']
           ports:
           - name: http
-            containerPort: 194
+            containerPort: 2194
           volumeMounts:
           - name: vc-name
             mountPath: /etc/openvpn
@@ -3120,47 +3224,52 @@ helm repo update
           requests:
             storage: 1Gi
   ```
-
+  
 + 登陆pod
 
   + 指定公网ip生成配置文件
 
     ```
-    ovpn_genconfig -u tcp://8.130.12.136:194 \
-    	-s '21.0.0.0/24' \
-    	-p 'route 172.31.96.0 255.255.240.0' \
+    ovpn_genconfig -u tcp://182.92.74.44:2194 \
+    	-s '22.0.0.0/24' \
+    	-p 'route 172.25.16.0 255.255.240.0' \
     	-p 'route 192.168.0.0 255.255.0.0' \
-    	-p 'route 10.0.0.0 255.255.255.0' \
     	-d -c -D
     ```
-
+    
   + 初始化密钥文件
-
+  
     ```
     ovpn_initpki
     ```
-
+  
   + （可选）修改服务端配置`/etc/openvpn/openvpn.conf`
-
+  
     ```
     # 记住ip
     ifconfig-pool-persist ipp.text
-    # 1g
+    # 同一账号多地登录
     duplicate-cn
     ```
-
+  
   + 启动服务
-
+  
     ```
     nohup ovpn_run &
     ```
-
+  
   + 生成客户端证书
-
+  
     ```
     easyrsa build-client-full shuyan-client nopass
     ovpn_getclient shuyan-client > shuyan-client.ovpn
     ```
+  
++ 来自`22.0.0.0`网段请求转发到内网网卡，用于访问服务端同网段其他机器
+
+  ```
+iptables -t nat -A POSTROUTING -s 22.0.0.0/24 -o eth0 -j MASQUERADE
+  ```
 
 + 配置静态路由`vpn`子网网段指向`openvpn`对应得`pod`
 
@@ -3169,7 +3278,7 @@ helm repo update
   + `openvpn`所在`node`节点主机内添加静态路由，`vpn`子网网段指向`openvpn`对应`pod`
 
     ```
-    route add -net 21.0.0.0/24 gw 172.31.96.45
+    route add -net 22.0.0.0/24 gw 10.244.1.44
     ```
 
 ## seata
@@ -3178,14 +3287,21 @@ helm repo update
 
   + 创建`seata`命名空间
 
-  + 添加`seataServer.properties`配置，内容为[config.txt](https://github.com/seata/seata/blob/1.4.0/script/config-center/config.txt)内容，进行适当修改，主要为以下部分
+  + 添加`seataServer.properties`配置，`group`为`SEATA_GROUP`，内容为[config.txt](https://github.com/seata/seata/blob/1.4.0/script/config-center/config.txt)内容，进行适当修改，主要为以下部分
 
     ```properties
+    # seata地址
+    service.default.grouplist=192.168.137.86:8091
+    # 数据库连接信息
     store.mode=db
     store.db.url=jdbc:mysql://rm-0jlh1c0p8ad955p32o.mysql.rds.aliyuncs.com:3306/seata?useUnicode=true&rewriteBatchedStatements=true
     store.db.user=ihr_db_admi
     store.db.password=1qaz@WS
     ```
+
+  + 为每个服务创建事务分组配置，`dataId`为`service.vgroupMapping.[APPLICATION-NAME]-group`，内容为`default`
+
+    <img src="assets/image-20220118153119496.png" alt="image-20220118153119496" style="zoom:67%;" /> 
 
 + 创建`seata`服务端数据库，并执行[sql脚本](https://github.com/seata/seata/blob/1.4.0/script/server/db/mysql.sql) 
 
@@ -3228,7 +3344,7 @@ helm repo update
       spec:
         containers:
           - name: seata-server
-            image: docker.io/seataio/seata-server:latest
+            image: docker.io/seataio/seata-server:1.4.2
             imagePullPolicy: IfNotPresent
             env:
               - name: SEATA_CONFIG_NAME
@@ -3254,20 +3370,101 @@ helm repo update
       registry {
           type = "nacos"
           nacos {
-            application = "seata-server"
-            serverAddr = "nacos-cs"
-            namespace = “seata”
+            serverAddr = "nacos-cs:8848"
+            namespace = "seata"
+            group = "SEATA_GROUP"
           }
       }
       config {
         type = "nacos"
         nacos {
-          serverAddr = "nacos-cs"
-          group = "SEATA_GROUP"
-          namespace = “seata”
+          serverAddr = "nacos-cs:8848"
           dataId: "seataServer.properties"
+          namespace = "seata"
+          group = "SEATA_GROUP"
         }
       }
+  ```
+
++ `springcloud`集成配置
+
+  + 自定义配置
+
+    ```java
+    PropsUtil.setProperty(props, "seata.registry.type", LauncherConstant.NACOS_MODE);
+    PropsUtil.setProperty(props, "seata.registry.nacos.server-addr", LauncherConstant.nacosAddr(profile));
+    PropsUtil.setProperty(props, "seata.registry.nacos.namespace", "seata");
+    PropsUtil.setProperty(props, "seata.config.type", LauncherConstant.NACOS_MODE);
+    PropsUtil.setProperty(props, "seata.config.nacos.server-addr", LauncherConstant.nacosAddr(profile));
+    PropsUtil.setProperty(props, "seata.config.nacos.namespace", "seata");
+    ```
+
+  + `bladex`配置
+
+    ```java
+    // 事务分组
+    defaultProperties.setProperty("spring.cloud.alibaba.seata.tx-service-group", appName.concat(NacosConstant.NACOS_GROUP_SUFFIX));
+    ```
+
+  + `seata`框架默认使用`SEATA_GROUP`分组
+
+## rabbitmq
+
+### 原版
+
++ 下载`chart`并解压
+
+  ```
+  helm repo add bitnami https://charts.bitnami.com/bitnami
+  helm fetch bitnami/rabbitmq
+  ```
+
++ 修改`value.yaml`
+
+  ```yaml
+  auth:
+    username: user
+    password: "xtbg.ca"
+  clustering:
+    enabled: false
+  persistence:
+    enabled: true
+    storageClass: "nfs-client"
+  service:
+    type: NodePort
+  ```
+
+### 自定义插件
+
++ 制作镜像
+
+  + 目录结构
+
+    ```yaml
+    Dockfile
+    plugins/
+      rabbitmq_delayed_message_exchange-3.9.0/	# 下载插件并解压
+    ```
+
+  + Dockerfile
+
+    ```dockerfile
+    FROM docker.io/bitnami/rabbitmq:3.9.11-debian-10-r0
+    COPY plugins /opt/bitnami/rabbitmq/plugins/
+    ```
+
+  + 制作镜像并上传到镜像仓库
+
++ 在[rabbitmq原版](#原版)修改`value.yaml`基础上修改如下内容
+
+  ```yaml
+  # 修改为自己的镜像
+  image:
+    registry: registry.cn-beijing.aliyuncs.com
+    repository: publix/bitnami-rabbitmq-delay
+    tag: 3.9.11-debian-10-r0
+  # 扩展插件加上新增的插件名称
+  extraPlugins: "rabbitmq_auth_backend_ldap,rabbitmq_delayed_message_exchange"
   ```
 
 # 集成prometheus
