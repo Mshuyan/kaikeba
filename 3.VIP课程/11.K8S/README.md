@@ -991,6 +991,8 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
 
 ## ingress
 
+### 介绍
+
 + `service`对外暴露端口很多时不便管理，可以借助`ingress`通过`域名+路径`减少对外暴露端口
 
 + `ingress`本质就是`nginx`的二次开发
@@ -998,6 +1000,13 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
 + [官网](https://kubernetes.github.io/ingress-nginx/) 
 
 + 安装参见[ingress安装](#ingress安装) 
+
++ ingress有两个实现版本
+
+  两者使用上略有差异
+
+  + `networking.k8s.io/v1`：k8s官网版本`ingress-nginx`
+  + `extensions/v1beta1`：nginx官方版本`nginx-ingress`
 
 + 配置转发规则
 
@@ -1014,43 +1023,45 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
       labels:
         app: health-app
       annotations:
-        kubernetes.io/ingress.class: nginx
-        nginx.ingress.kubernetes.io/rewrite-target: /
+        nginx.ingress.kubernetes.io/proxy-body-size: 50m
     spec:
+      ingressClassName: nginx
       rules:
         - host: dingappk8s.faw-vw.com
           http:
             paths:
               - pathType: ImplementationSpecific
+                path: /portal
                 backend:
                   service:
                     name: health-app
                     port:
                       number: 80
+                     
     ```
     
   + https
-  
+
     + 生成私钥
-  
+
       ```
       openssl genrsa -out tls.key 1024
       ```
-  
+
     + 自签发证书
-  
+
       ```
       openssl req -new -x509 -key tls.key -out tls.crt -subj /C=CN/ST=Shanghai/L=Shanghai/O=DevOps/CN=ingress.kaikeba.com
       ```
-  
+
     + 创建K8S使用的证书配置文件Secret
-  
+
       ```
       kubectl create secret tls tomcat-ingress-secret --cert=tls.crt --key=tls.key
       ```
-  
+
     + 创建带tls认证的tomcat后端服务
-  
+
       ```yaml
       apiVersion: extensions/v1beta1
       kind: Ingress
@@ -1058,7 +1069,8 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
         name: ingress-tomcat-tls  
         namespace: default  
         annotations:    
-          kubernetes.io/ingress.class: "nginx"  
+          kubernetes.io/ingress.class: "nginx" 
+          nginx.ingress.kubernetes.io/proxy-body-size: 50m
         labels:    
           app: tomcat
       spec:  
@@ -1074,6 +1086,26 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
               serviceName: tomcat            
               servicePort: 8080
       ```
+
+### 注解
+
++ 配置新旧服务版本流量权重
+
+  `nginx.ingress.kubernetes.io/service-weight: ""`
+
++ 重写URI
+
+  `nginx.ingress.kubernetes.io/rewrite-target: /`
+
++ 请求体大小限制
+
+  + `networking.k8s.io/v1`
+
+    `nginx.ingress.kubernetes.io/proxy-body-size: 50m`
+
+  + `extensions/v1beta1`
+
+    `nginx.org/client-max-body-size: 50m`
 
 # 网络
 
@@ -3051,6 +3083,10 @@ helm repo update
   # 设置root密码
   auth:
     rootPassword: "xtbg.ca"
+  # p
+  extraEnvVars:
+    - name: TZ
+      value: Asia/Shanghai
   # 暴露端口
   service:
     type: NodePort
@@ -3160,7 +3196,7 @@ helm repo update
   kind: Service
   metadata:
     name: openvpn
-    namespace: ihr-sit
+    namespace: middleware-sit
   spec:
     type: ClusterIP
     selector:
@@ -3168,15 +3204,15 @@ helm repo update
       release: stabel
     ports:
     - name: http
-      port: 2194
-      targetPort: 2194
+      port: 1194
+      targetPort: 1194
   ---
   # deployment相关
   apiVersion: apps/v1
   kind: StatefulSet
   metadata:
     name: openvpn
-    namespace: ihr-sit
+    namespace: middleware-sit
   # rs相关
   spec:
     serviceName: openvpn
@@ -3199,11 +3235,12 @@ helm repo update
           command: ['sh', '-c', ' sysctl net.ipv6.conf.all.disable_ipv6=0 ; 
                                   sysctl net.ipv6.conf.default.forwarding=1 ; 
                                   sysctl net.ipv6.conf.all.forwarding=1 ; 
+                                  echo "1" > /proc/sys/net/ipv4/ip_forward;
                                   sed -i "s/port 1194/port \$OVPN_PORT/g" /usr/local/bin/ovpn_genconfig ;
                                   while true; do sleep 30; done; ']
           ports:
           - name: http
-            containerPort: 2194
+            containerPort: 1194
           volumeMounts:
           - name: vc-name
             mountPath: /etc/openvpn
@@ -3217,7 +3254,7 @@ helm repo update
         name: vc-name
         # 指定 storageClass
         annotations:
-          volume.beta.kubernetes.io/storage-class: "alibabacloud-cnfs-nas"
+          volume.beta.kubernetes.io/storage-class: "nfs-client"
       spec:
         accessModes: [ "ReadWriteOnce" ]
         resources:
@@ -3229,9 +3266,12 @@ helm repo update
 
   + 指定公网ip生成配置文件
 
+    必须指定`node`节点网段，否则服务端其他节点无法连通客户端
+    
     ```
-    ovpn_genconfig -u tcp://182.92.74.44:2194 \
+    ovpn_genconfig -u tcp://182.92.74.44:1194 \
     	-s '22.0.0.0/24' \
+    	-p 'route 10.0.0.0 255.255.255.0' \
     	-p 'route 172.25.16.0 255.255.240.0' \
     	-p 'route 192.168.0.0 255.255.0.0' \
     	-d -c -D
@@ -3258,6 +3298,13 @@ helm repo update
     nohup ovpn_run &
     ```
   
+  + 配置客户端访问服务端同网段其他机器
+  
+    ```sh
+    # 来着22.0.0.0网段得请求转发到eth0网卡
+    iptables -t nat -A POSTROUTING -s 22.0.0.0/24 -o eth0 -j MASQUERADE
+    ```
+    
   + 生成客户端证书
   
     ```
@@ -3265,21 +3312,25 @@ helm repo update
     ovpn_getclient shuyan-client > shuyan-client.ovpn
     ```
   
-+ 来自`22.0.0.0`网段请求转发到内网网卡，用于访问服务端同网段其他机器
++ k8s集群节点安装openvpn客户端，连入vpn网络
 
-  ```
-iptables -t nat -A POSTROUTING -s 22.0.0.0/24 -o eth0 -j MASQUERADE
-  ```
+  + 修改集群节点使用的`ovpn`文件
 
-+ 配置静态路由`vpn`子网网段指向`openvpn`对应得`pod`
+    ```sh
+    # 不从服务端拉取`route`配置，否则服务端访问本地网络都走vpn了
+    route-nopull
+    # vpn子网网段需要配置走vpn
+    route 22.0.0.0 255.255.255.0
+    ```
 
-  + 阿里云`专有网络vpc`的交换机配置静态路由，`vpn`子网网段指向`openvpn`所在`node`节点
-
-  + `openvpn`所在`node`节点主机内添加静态路由，`vpn`子网网段指向`openvpn`对应`pod`
+  + 安装客户端，开机连接
 
     ```
-    route add -net 22.0.0.0/24 gw 10.244.1.44
+    yum install openvpn
+    echo 'openvpn /etc/openvpn/client/k8s-sit.ovpn' >> /etc/rc.local
+    chmod +x /etc/rc.local
     ```
+
 
 ## seata
 
@@ -3467,9 +3518,602 @@ iptables -t nat -A POSTROUTING -s 22.0.0.0/24 -o eth0 -j MASQUERADE
   extraPlugins: "rabbitmq_auth_backend_ldap,rabbitmq_delayed_message_exchange"
   ```
 
-# 集成prometheus
+# kubesphere
 
-以后再学
+> 官网：https://kubesphere.io/zh/docs/installing-on-linux/introduction/intro/
+
+## 安装
+
++ 主机要求
+
+  + 最低配置：CPU：2 核，内存：4 G，硬盘：40 G
+
+  + 时间正确
+
+  + 可使用`curl`、`openssl`命令
+
+  + 安装软件：`socat`、`conntrack`、`ebtables`、`ipset`
+
+    ```
+    yum install -y socat conntrack ebtables ipset
+    ```
+
+  + 关闭防火墙
+
++ 所有安装基于`kubekey`安装，下载地址：https://github.com/kubesphere/kubekey/releases，下载`-amd64.tar.gz`版本
+
+  解压后执行命令
+
+  ```
+  export KKZONE=cn
+  chmod +x kk
+  ```
+
+### 多节点安装
+
++ 查看支持那些版本`k8s`
+
+  ```
+  ./kk version --show-supported-k8s
+  ```
+
++ 创建示例配置文件
+
+  ```sh
+  # 注意版本前带 v
+  ./kk create config --with-kubernetes v1.23.0 --with-kubesphere
+  # 执行后生成 config-sample.yaml 文件,需要进行配置修改
+  ```
+
++ 创建集群
+
+  ```sh
+  ./kk create cluster -f config-sample.yaml
+  # 最后一步 Please wait for the installation to complete 可能会卡很长时间
+  # 可以使用 kubectl 查看所有pod运行情况，有问题及时解决
+  ```
+
+### 启用kubectl自动补全
+
+```sh
+apt-get install bash-completion
+echo 'source <(kubectl completion bash)' >>~/.bashrc
+kubectl completion bash >/etc/bash_completion.d/kubectl
+```
+
+### 卸载
+
+```
+./kk delete cluster -f config-sample.yaml
+```
+
+## kk配置
+
+> 参数说明：https://kubesphere.io/zh/docs/installing-on-linux/introduction/vars/
+
+### 说明
+
+```yaml
+
+apiVersion: kubekey.kubesphere.io/v1alpha2
+kind: Cluster
+metadata:
+  name: sample
+spec:
+  # 节点信息
+  hosts:
+  	#节点名称      节点公/私网IP			节点私网IP					  用户名		 密码
+  - {name: master, address: 172.16.0.2, internalAddress: 172.16.0.2, user: ubuntu, password: "Qcloud@123"}
+  - {name: node1, address: 172.16.0.3, internalAddress: 172.16.0.2, user: ubuntu, password: "Qcloud@123"}
+  - {name: node2, address: 172.16.0.4, internalAddress: 172.16.0.3, user: ubuntu, password: "Qcloud@123"}
+  # 核心插件部署位置
+  roleGroups:
+    etcd:
+    - master
+    control-plane: 
+    - master
+    worker:
+    - node1
+    - node2
+  controlPlaneEndpoint:
+    ## Internal loadbalancer for apiservers 
+    # internalLoadbalancer: haproxy
+
+    domain: lb.kubesphere.local
+    address: ""
+    port: 6443
+  kubernetes:
+    version: 1.23.0
+    clusterName: cluster.local
+  network:
+    plugin: calico
+    # 节点IP池
+    kubePodsCIDR: 10.233.64.0/18
+    kubeServiceCIDR: 10.233.0.0/18
+    ## multus support. https://github.com/k8snetworkplumbingwg/multus-cni
+    multusCNI:
+      enabled: false
+  registry:
+    plainHTTP: false
+    privateRegistry: ""
+    namespaceOverride: ""
+    # docker加速地址
+    registryMirrors: []
+    # 不安全的docker仓库地址
+    insecureRegistries: []
+  # 持久化配置
+  addons: []
+
+
+# 组件安装，可安装后进行调整
+---
+apiVersion: installer.kubesphere.io/v1alpha1
+kind: ClusterConfiguration
+metadata:
+  name: ks-installer
+  namespace: kubesphere-system
+  labels:
+    version: v3.2.1
+spec:
+  persistence:
+    storageClass: ""
+  authentication:
+    jwtSecret: ""
+  local_registry: ""
+  namespace_override: ""
+  # dev_tag: ""
+  etcd:
+    monitoring: false
+    endpointIps: localhost
+    port: 2379
+    tlsEnable: true
+  common:
+    core:
+      console:
+        enableMultiLogin: true
+        port: 30880
+        type: NodePort
+    # apiserver:
+    #  resources: {}
+    # controllerManager:
+    #  resources: {}
+    redis:
+      enabled: false
+      volumeSize: 2Gi
+    openldap:
+      enabled: false
+      volumeSize: 2Gi
+    minio:
+      volumeSize: 20Gi
+    monitoring:
+      # type: external
+      endpoint: http://prometheus-operated.kubesphere-monitoring-system.svc:9090
+      GPUMonitoring:
+        enabled: false
+    gpu:
+      kinds:         
+      - resourceName: "nvidia.com/gpu"
+        resourceType: "GPU"
+        default: true
+    es:
+      # master:
+      #   volumeSize: 4Gi
+      #   replicas: 1
+      #   resources: {}
+      # data:
+      #   volumeSize: 20Gi
+      #   replicas: 1
+      #   resources: {}
+      logMaxAge: 7
+      elkPrefix: logstash
+      basicAuth:
+        enabled: false
+        username: ""
+        password: ""
+      externalElasticsearchHost: ""
+      externalElasticsearchPort: ""
+  alerting:
+    enabled: false
+    # thanosruler:
+    #   replicas: 1
+    #   resources: {}
+  auditing:
+    enabled: false
+    # operator:
+    #   resources: {}
+    # webhook:
+    #   resources: {}
+  devops:
+    enabled: false
+    jenkinsMemoryLim: 2Gi
+    jenkinsMemoryReq: 1500Mi
+    jenkinsVolumeSize: 8Gi
+    jenkinsJavaOpts_Xms: 512m
+    jenkinsJavaOpts_Xmx: 512m
+    jenkinsJavaOpts_MaxRAM: 2g
+  events:
+    enabled: false
+    # operator:
+    #   resources: {}
+    # exporter:
+    #   resources: {}
+    # ruler:
+    #   enabled: true
+    #   replicas: 2
+    #   resources: {}
+  logging:
+    enabled: false
+    containerruntime: docker
+    logsidecar:
+      enabled: true
+      replicas: 2
+      # resources: {}
+  metrics_server:
+    enabled: false
+  monitoring:
+    storageClass: ""
+    # kube_rbac_proxy:
+    #   resources: {}
+    # kube_state_metrics:
+    #   resources: {}
+    # prometheus:
+    #   replicas: 1
+    #   volumeSize: 20Gi
+    #   resources: {}
+    #   operator:
+    #     resources: {}
+    #   adapter:
+    #     resources: {}
+    # node_exporter:
+    #   resources: {}
+    # alertmanager:
+    #   replicas: 1
+    #   resources: {}
+    # notification_manager:
+    #   resources: {}
+    #   operator:
+    #     resources: {}
+    #   proxy:
+    #     resources: {}
+    gpu:
+      nvidia_dcgm_exporter:
+        enabled: false
+        # resources: {}
+  multicluster:
+    clusterRole: none 
+  network:
+    networkpolicy:
+      enabled: false
+    ippool:
+      type: none
+    topology:
+      type: none
+  openpitrix:
+    store:
+      enabled: false
+  servicemesh:
+    enabled: false
+  kubeedge:
+    enabled: false   
+    cloudCore:
+      nodeSelector: {"node-role.kubernetes.io/worker": ""}
+      tolerations: []
+      cloudhubPort: "10000"
+      cloudhubQuicPort: "10001"
+      cloudhubHttpsPort: "10002"
+      cloudstreamPort: "10003"
+      tunnelPort: "10004"
+      cloudHub:
+        advertiseAddress:
+          - ""
+        nodeLimit: "100"
+      service:
+        cloudhubNodePort: "30000"
+        cloudhubQuicNodePort: "30001"
+        cloudhubHttpsNodePort: "30002"
+        cloudstreamNodePort: "30003"
+        tunnelNodePort: "30004"
+    edgeWatcher:
+      nodeSelector: {"node-role.kubernetes.io/worker": ""}
+      tolerations: []
+      edgeWatcherAgent:
+        nodeSelector: {"node-role.kubernetes.io/worker": ""}
+        tolerations: []
+```
+
+### 高可用
+
+#### 内置HAproxy
+
+```yaml
+spec:
+  controlPlaneEndpoint:
+    # 取消如下注释即可
+    internalLoadbalancer: haproxy
+    
+    domain: lb.kubesphere.local
+    address: ""
+    port: 6443
+```
+
+#### 其他
+
+参见
+
++ [使用负载均衡器创建](https://kubesphere.io/zh/docs/installing-on-linux/high-availability-configurations/ha-configuration/) 
++ [使用keepalive和HAproxy创建](https://kubesphere.io/zh/docs/installing-on-linux/high-availability-configurations/set-up-ha-cluster-using-keepalived-haproxy/) 
+
+## 持久化存储
+
++ 参考：[持久化存储](https://kubesphere.io/zh/docs/installing-on-linux/persistent-storage-configurations/understand-persistent-storage/) 
++ 支持的免费持久化存储方案：
+  + NFS：不建议，存在兼容问题
+  + GlusterFS：社区支持一般
+  + Ceph：最优
+
+### Ceph
+
+#### 安装
+
+
+
+#### kk配置
+
+
+
+### NFS
+
++ 所有节点安装`nfs`客户端
+
+  ```
+  sudo apt-get install nfs-common
+  ```
+
++ 准备配置文件`nfs-client.yaml`
+
+  ```yaml
+  nfs:
+    server: "192.168.0.2"
+    path: "/mnt/demo"
+  storageClass:
+    defaultClass: true
+  ```
+
++ kk配置
+
+  ```yaml
+    addons:
+    - name: nfs-client
+      namespace: kube-system
+      sources:
+        chart:
+          name: nfs-client-provisioner
+          repo: https://charts.kubesphere.io/main
+          # 上面的文件
+          valuesFile: /home/ubuntu/nfs-client.yaml
+          # 也可以直接写在这里
+          # values:
+          # - storageClass.defaultClass=true
+          # - nfs.server=192.168.0.2
+          # - nfs.path=/mnt/demo
+  ```
+
++ 踩坑
+  + `nfs服务端`不要安装到集群内，会导致`calico`的`pod`无法启动，安装卡在最后1步`Please wait for the installation to complete`
+
+## 节点操作
+
++ 重新检索`kk`配置文件
+
+  ```sh
+  ./kk create config --from-cluster
+  # 如果原有配置文件还存在，可以用原来的
+  ```
+
+### 添加
+
++ 修改`kk`配置文件，在`hosts`和`roleGroups`内增加节点信息
+
++ 添加
+
+  ```
+  ./kk add nodes -f sample.yaml
+  ```
+
+### 删除
+
++ 在管理界面停止节点调度
+
++ 删除节点
+
+  ```
+  ./kk delete node <nodeName> -f config-sample.yaml
+  ```
+
+## 启用可插拔插件
+
+> + 登陆管理界面，`平台管理 > CRD > ClusterConfiguration > ks-installer`右侧仨点，编辑`yaml`
+> + 参考：[组件](https://kubesphere.io/zh/docs/pluggable-components/overview/)  
+
++ 告警系统
+
+  + 指标达到阈值时，通过钉钉、邮件等方式通知
+
+  + 配置
+
+    ```
+    alerting:
+        enabled: true
+    ```
+
++ 审计日志
+
+  + 人员操作记录
+
+  + 配置
+
+    ```
+    auditing:
+        enabled: true
+    ```
+
++ 事件系统
+
+  + 图形化管理k8s事件
+
+  + 配置
+
+    ```
+    events:
+        enabled: true
+    ```
+
++ 日志系统
+
+  + 日志收集器
+
+  + 配置
+
+    ```
+    logging:
+        containerruntime: docker
+        enabled: true
+        logsidecar:
+          enabled: true
+          replicas: 2
+    ```
+
++ 动态伸缩
+
+  + HPA
+
+  + 配置
+
+    ```
+    metrics_server:
+        enabled: true
+    ```
+
++ 应用商店
+
+  + 通过helm管理应用
+
+  + 配置
+
+    ```
+    openpitrix:
+        store:
+          enabled: true
+    ```
+
++ 服务网格
+
+  + servicemesh
+
+  + 配置
+
+    ```
+    servicemesh:
+        enabled: true
+    ```
+
++ devops
+
+  + jenkins环境
+
+  + 配置
+
+    ```
+     devops:
+        enabled: true
+        jenkinsJavaOpts_MaxRAM: 2g
+        jenkinsJavaOpts_Xms: 512m
+        jenkinsJavaOpts_Xmx: 512m
+        jenkinsMemoryLim: 2Gi
+        jenkinsMemoryReq: 1500Mi
+        jenkinsVolumeSize: 8Gi
+    ```
+
++ 网络策略
+
+  + 用于在同一个集群内对`pod`设置防火墙
+
+  + 配置
+
+    ```
+    network:
+        networkpolicy:
+          enabled: true
+    ```
+
++ 服务拓扑
+
+  + 用图形化展示服务间通信关系
+
+  + 配置
+
+    ```
+    network:
+        topology:
+          type: weave-scope
+    ```
+
++ 容器IP池
+
+  + `pod`的`ip`池
+
+  + 配置
+
+    ```
+    network:
+        ippool:
+          type: calico
+    ```
+
++ KubeEdge
+
+  + 管理边缘节点
+
+  + 配置
+
+    ```yaml
+    kubeedge:
+        cloudCore:
+          cloudHub:
+            advertiseAddress:
+              - ''
+            nodeLimit: '100'
+          cloudhubHttpsPort: '10002'
+          cloudhubPort: '10000'
+          cloudhubQuicPort: '10001'
+          cloudstreamPort: '10003'
+          nodeSelector:
+            node-role.kubernetes.io/worker: ''
+          service:
+            cloudhubHttpsNodePort: '30002'
+            cloudhubNodePort: '30000'
+            cloudhubQuicNodePort: '30001'
+            cloudstreamNodePort: '30003'
+            tunnelNodePort: '30004'
+          tolerations: []
+          tunnelPort: '10004'
+        edgeWatcher:
+          edgeWatcherAgent:
+            nodeSelector:
+              node-role.kubernetes.io/worker: ''
+            tolerations: []
+          nodeSelector:
+            node-role.kubernetes.io/worker: ''
+          tolerations: []
+        # 启用
+        enabled: true
+    ```
+
+## 多集群管理
+
+
+
+
 
 # 踩坑
 
@@ -3495,7 +4139,16 @@ $ kubectl taint nodes --all node-role.kubernetes.io/master-
 $ kubectl taint nodes k8s node-role.kubernetes.io/master=true:NoSchedule
 ```
 
-# 问题
+## IPVS: rr: TCP ... no destination avaliable
 
-+ 如何创建service
-+ service对外提供服务时是所有节点都暴露端口吗
++ 安装`kubesphere`之后，服务端经常刷这个日志
+
++ 解决：主节点执行
+
+  ```
+  echo -e 'modprobe ip_vs\nmodprobe ip_vs_wrr' >/etc/sysconfig/modules/ipvs.modules
+  chmod +x /etc/sysconfig/modules/ipvs.modules
+  sh /etc/sysconfig/modules/ipvs.modules
+  ```
+
+  
