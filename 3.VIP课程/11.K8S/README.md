@@ -784,7 +784,30 @@ kubeadm join 192.168.10.8:6443 --token abcdef.0123456789abcdef \
   ![image-20210625085253235](assets/image-20210625085253235.png) 
 
   + 事先需要配置`pod`伸缩容规则
+  
   + `HPA`对`ReplicaSet`进行监听，如果`ReplicaSet`下`pod`达到扩容条件（如`pod`的`cpu`利用率达到80%)，则将进行扩容，如果`ReplicaSet`下`pod`达到缩容条件（如`pod`的`cpu`利用率低于50%)，则将进行缩容
+  
+  + yaml
+  
+    ```yaml
+    apiVersion: autoscaling/v1
+    kind: HorizontalPodAutoscaler
+    metadata:
+      annotations:
+        cpuTargetUtilization: "75"
+        memoryTargetValue: 1536Mi
+      name: ding-bridge-lcdp
+      namespace: dev-fc2-qm-ggsyb-zhxt-qmyy
+    spec:
+      maxReplicas: 4
+      minReplicas: 1
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: ding-bridge-lcdp
+    ```
+  
+    
 
 ### StatefulSet
 
@@ -3312,9 +3335,9 @@ helm repo update
     ovpn_getclient shuyan-client > shuyan-client.ovpn
     ```
   
-+ k8s集群节点安装openvpn客户端，连入vpn网络
++ pod连入vpn网络
 
-  + 修改集群节点使用的`ovpn`文件
+  + 修改集群节点使用的`ovpn`文件，并在k8s上创建配置字典`client-ovpn`
 
     ```sh
     # 不从服务端拉取`route`配置，否则服务端访问本地网络都走vpn了
@@ -3323,14 +3346,81 @@ helm repo update
     route 22.0.0.0 255.255.255.0
     ```
 
-  + 安装客户端，开机连接
+  + 构建基础镜像
 
+    + Dockerfile
+  
+      ```dockerfile
+      FROM registry.cn-beijing.aliyuncs.com/publix/openjdk:alpine-3.12
+      
+      RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+      #验证码字体包
+      RUN set -xe && apk --no-cache add ttf-dejavu fontconfig
+      # GMT+8 for CentOS
+      RUN apk add -U tzdata
+      RUN /bin/cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+      RUN echo "Asia/Shanghai" > /etc/timezone
+      # openvpn
+      RUN apk add openvpn
+      
+      ADD ./start.sh /root/start.sh
+      ```
+  
+    + start.sh
+  
+      ```sh
+      #！/bin/bash
+      
+      mkdir -p /dev/net
+      mknod /dev/net/tun c 10 200
+      chmod 600 /dev/net/tun
+      nohup openvpn /root/ovpn/client.ovpn > /root/ovpn.log &
+      ```
+  
+  + 使用创建好的基础镜像构建服务镜像
+  
+    ```dockerfile
+    FROM registry.cn-beijing.aliyuncs.com/qmzhiding2/openjdk-qmyy:ovpn-alpine-3.12
+    MAINTAINER mengqingchuang@faw.com.cn
+    
+    ARG jarName
+    ARG exPose
+    ARG appPath
+    ARG envVar
+    ENV jarName=${jarName}
+    ENV envVar=${envVar}
+    
+    RUN mkdir -p /blade
+    WORKDIR /blade
+    ADD ./${appPath}/target/${jarName}.jar ./${jarName}.jar
+    EXPOSE ${exPose}
+    
+    # 先启动openvpn脚本再启动服务
+    ENTRYPOINT sh /root/start.sh && java -Djava.security.egd=file:/dev/./urandom -jar ${jarName}.jar --spring.profiles.active=${envVar}
     ```
-    yum install openvpn
-    echo 'openvpn /etc/openvpn/client/k8s-sit.ovpn' >> /etc/rc.local
-    chmod +x /etc/rc.local
+  
+  + deployment.yaml
+  
+    将`client-ovpn`配置字段挂在到`/root/ovpn`目录
+  
+    ```yaml
+    kind: Deployment
+    apiVersion: apps/v1
+    metadata:
+      template:
+        spec:
+          volumes:
+            - name: client-ovpn
+              configMap:
+                name: client-ovpn
+                defaultMode: 420
+          containers:
+            - name: push-center
+              volumeMounts:
+                - name: client-ovpn
+                  readOnly: true
+                  mountPath: /root/ovpn
     ```
-
 
 ## seata
 
