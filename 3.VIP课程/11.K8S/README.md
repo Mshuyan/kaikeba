@@ -3292,10 +3292,10 @@ helm repo update
     必须指定`node`节点网段，否则服务端其他节点无法连通客户端
     
     ```
-    ovpn_genconfig -u tcp://182.92.74.44:1194 \
+    ovpn_genconfig -u tcp://123.57.174.198:31194 \
     	-s '22.0.0.0/24' \
     	-p 'route 10.0.0.0 255.255.255.0' \
-    	-p 'route 172.25.16.0 255.255.240.0' \
+    	-p 'route 172.18.192.0 255.255.240.0' \
     	-p 'route 192.168.0.0 255.255.0.0' \
     	-d -c -D
     ```
@@ -3303,15 +3303,15 @@ helm repo update
   + 初始化密钥文件
   
     ```
-    ovpn_initpki
+    ovpn_initpki nopa
     ```
   
   + （可选）修改服务端配置`/etc/openvpn/openvpn.conf`
   
     ```
     # 记住ip
-    ifconfig-pool-persist ipp.text
     # 同一账号多地登录
+    ifconfig-pool-persist ipp.text
     duplicate-cn
     ```
   
@@ -3331,8 +3331,8 @@ helm repo update
   + 生成客户端证书
   
     ```
-    easyrsa build-client-full shuyan-client nopass
-    ovpn_getclient shuyan-client > shuyan-client.ovpn
+    easyrsa build-client-full client nopass
+    ovpn_getclient client > shuyan-client.ovpn
     ```
   
 + pod连入vpn网络
@@ -3607,6 +3607,50 @@ helm repo update
   # 扩展插件加上新增的插件名称
   extraPlugins: "rabbitmq_auth_backend_ldap,rabbitmq_delayed_message_exchange"
   ```
+
+## xxl-job-admin
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: xxl-job-admin
+  name: xxl-job-admin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: xxl-job-admin
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: xxl-job-admin
+    spec:
+      containers:
+      - image: xuxueli/xxl-job-admin:2.1.2
+        name: xxl-job-admin
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PARAMS
+          value: "--spring.datasource.url=jdbc:mysql://10.140.16.43:3306/xxljob?Unicode=true&characterEncoding=UTF-8&useSSL=false --spring.datasource.username=qmyy --spring.datasource.password=MysqlQmyy2022!"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xxl-job-admin
+  labels:
+    app: xxl-job-admin
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: xxl-job-admin
+```
 
 # kubesphere
 
