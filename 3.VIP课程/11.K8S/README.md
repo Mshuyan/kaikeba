@@ -3219,7 +3219,6 @@ helm repo update
   kind: Service
   metadata:
     name: openvpn
-    namespace: middleware-sit
   spec:
     type: ClusterIP
     selector:
@@ -3235,7 +3234,6 @@ helm repo update
   kind: StatefulSet
   metadata:
     name: openvpn
-    namespace: middleware-sit
   # rs相关
   spec:
     serviceName: openvpn
@@ -3251,6 +3249,14 @@ helm repo update
           app: openvpn
           release: stabel
       spec:
+        volumes:
+          - hostPath:
+              path: /etc/localtime
+              type: ''
+            name: volume-localtime
+          - name: volume-openvpn
+            persistentVolumeClaim:
+              claimName: openvpn
         containers:
         - name: openvpn
           image: kylemanna/openvpn:2.4
@@ -3260,29 +3266,18 @@ helm repo update
                                   sysctl net.ipv6.conf.all.forwarding=1 ; 
                                   echo "1" > /proc/sys/net/ipv4/ip_forward;
                                   sed -i "s/port 1194/port \$OVPN_PORT/g" /usr/local/bin/ovpn_genconfig ;
-                                  while true; do sleep 30; done; ']
+                                  while true; do sleep 30; done; '
           ports:
           - name: http
-            containerPort: 1194
+            containerPort: 31194
           volumeMounts:
-          - name: vc-name
+          - name: volume-openvpn
             mountPath: /etc/openvpn
           securityContext:
             privileged: true
             capabilities:
               add: # 添加
               - NET_ADMIN
-    volumeClaimTemplates:
-    - metadata:
-        name: vc-name
-        # 指定 storageClass
-        annotations:
-          volume.beta.kubernetes.io/storage-class: "nfs-client"
-      spec:
-        accessModes: [ "ReadWriteOnce" ]
-        resources:
-          requests:
-            storage: 1Gi
   ```
   
 + 登陆pod
@@ -3292,11 +3287,8 @@ helm repo update
     必须指定`node`节点网段，否则服务端其他节点无法连通客户端
     
     ```
-    ovpn_genconfig -u tcp://123.57.174.198:31194 \
+    ovpn_genconfig -u tcp://10.1:31194 \
     	-s '22.0.0.0/24' \
-    	-p 'route 10.0.0.0 255.255.255.0' \
-    	-p 'route 172.18.192.0 255.255.240.0' \
-    	-p 'route 192.168.0.0 255.255.0.0' \
     	-d -c -D
     ```
     
@@ -3327,6 +3319,28 @@ helm repo update
     # 来着22.0.0.0网段得请求转发到eth0网卡
     iptables -t nat -A POSTROUTING -s 22.0.0.0/24 -o eth0 -j MASQUERADE
     ```
+    
+    + 如果报错，就将宿主机的 `/lib/modules` 目录挂载到容器内。
+    
+      ```yaml
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: openvpn-server
+      spec:
+        containers:
+        - name: openvpn-container
+          image: your_openvpn_image
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: modules
+            mountPath: /lib/modules
+        volumes:
+        - name: modules
+          hostPath:
+            path: /lib/modules
+      ```
     
   + 生成客户端证书
   
